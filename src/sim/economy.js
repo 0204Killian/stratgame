@@ -70,12 +70,15 @@ function aiEconomy(n, fl) {
     }
   }
   const t = troopsOf(n);
-  if ((t < fl * .5 || !armiesOf(n).length) && n.manpower > Math.min(fl * .08, 20000) && n.treasury > 0) {
+  // Armies can only be raised in land you hold: the capital if you control it, otherwise your most populous controlled province.
+  const held = S.P[n.cap].ctrl === n.id ? S.P[n.cap] : provsOf(n).filter(p => p.ctrl === n.id).sort((x, y) => y.pop - x.pop)[0];
+  const spawn = held ? held.id : null;
+  if (spawn != null && (t < fl * .5 || !armiesOf(n).length) && n.manpower > Math.min(fl * .08, 20000) && n.treasury > 0) {
     const tr = Math.min(n.manpower, fl * .3), c = tr * UPKEEP * 1.5;
     if (n.treasury >= c || !armiesOf(n).length) {
       n.manpower -= tr; n.treasury -= c;
-      const home = armiesOf(n).find(a => a.prov === n.cap && !a.path.length && a.prog === 0);
-      if (home) home.troops += tr; else makeArmy(n, n.cap, tr);
+      const home = armiesOf(n).find(a => a.prov === spawn && !a.path.length && a.prog === 0);
+      if (home) home.troops += tr; else makeArmy(n, spawn, tr);
     }
   }
   if (hasNuke(n) && nukeReady(n)) {

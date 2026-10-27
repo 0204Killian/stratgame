@@ -60,13 +60,13 @@ function tabProvince(ui) {
     ${row('Owner', owner ? chip(owner) + natName(owner) + (owner.cap === pr.id ? ' · capital' : '') : 'Free province')}
     ${ctrl && ctrl !== owner ? row('Occupied by', chip(ctrl) + natName(ctrl)) : ''}
     ${row('Resource', `<span class="rdot" style="background:${D.resources[pr.res].c}"></span>${D.resources[pr.res].n} <span class="sub">· ${D.resources[pr.res].d}</span>`)}
-    ${row('Population', fmtPop(pr.pop))}${row('GDP', fmtGdp(pr.gdp))}${row('Garrison', num(G.garrison(pr)))}
+    ${row('Population', fmtPop(pr.pop))}${row('GDP', fmtGdp(pr.gdp))}${row('Garrison', `${num(G.garrison(pr))} <span class="sub">· smallest army that can siege it</span>`)}
     ${pr.siege ? row('Siege', chip(S.nations[pr.siege.nat]) + Math.round(pr.siege.prog * 100) + '%') : ''}
     ${G.devastated(pr) ? row('Status', 'Devastated until ' + dateStr(pr.devUntil), 'neg') : ''}
     ${pr.coastal ? row('Coast', pr.seaN.length ? `Sea routes to ${pr.seaN.map(i => esc(S.P[i].name)).join(', ')}` : 'Coastal') : ''}</dl>`;
   if (!p || !p.alive || S.phase !== 'game') return h;
   if (!owner) h += G.canColonise(p.id, pr)
-    ? `<p class="hint">Free land. March an army here to annex it. About ${kfmt(G.garrison(pr) * 3)} troops siege at full speed.</p>`
+    ? `<p class="hint">Free land. March an army of at least ${kfmt(G.garrison(pr))} here to annex it; about ${kfmt(G.garrison(pr) * 3)} sieges at full speed.</p>`
     : `<p class="hint">Free land, but out of reach. You can only annex land that borders your territory or has a sea route to one of your coastal provinces.</p>`;
   if (owner && owner.you && pr.ctrl === p.id) {
     h += `<h3>Buildings</h3><div class="blds">${Object.keys(D.buildings).map(k => {

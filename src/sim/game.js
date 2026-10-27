@@ -3,7 +3,7 @@ import { S, D, setState, setData, R, pick, rnd, newNationName, clamp, MONTH, YEA
   player, provsOf, popOf, gdpOf, armiesOf, troopsOf, forceLimit, techCost, techExtra, techAvail, warBetween, atWar, warsOf, allied, truceWith, hasNuke, buildCost, monthlyIncome } from './core.js';
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
-import { makeArmy, orderMove, dailyMilitary, nuke, nukeReady } from './military.js';
+import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady } from './military.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation } from './economy.js';
 import { aiArmies } from './ai.js';
@@ -40,7 +40,7 @@ export function startGame() {
 export function tick() {
   if (S.phase !== 'game' || S.over) return;
   S.day++;
-  dailyMilitary();
+  dailyMilitary(); dailyAttrition();
   if (S.day % MONTH === 0) monthlyTick();
   aiArmies();
 }

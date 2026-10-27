@@ -11,6 +11,18 @@ export function canEnter(nid, p) {
   if (allied(nid, p.owner)) return true;
   return atWar(nid, p.owner) || atWar(nid, p.ctrl);
 }
+export const OVERRUN = 5;   // strength ratio at which the weaker side is wiped out in a day
+// Supply: armies standing in land controlled by an enemy wither; a nation with no land of its own withers fast.
+export function dailyAttrition() {
+  const has1 = new Set(); for (const p of S.P) if (p.ctrl != null) has1.add(p.ctrl);
+  for (const a of S.armies) {
+    if (a.prog > 0) continue;
+    const p = S.P[a.prov];
+    if (!has1.has(a.nat)) a.troops *= 1 - .10 / 30;
+    else if (p.ctrl != null && p.ctrl !== a.nat && atWar(a.nat, p.ctrl)) a.troops *= 1 - .02 / 30;
+  }
+  S.armies = S.armies.filter(a => a.troops >= 300);
+}
 export const seaOK = n => n.trait === 'navy' || has(n, 'carriers');
 const hasPort = n => memo('port' + n.id, () => S.P.some(q => q.owner === n.id && q.ctrl === n.id && isPort(q)));
 export function edges(n, p) {
@@ -64,7 +76,9 @@ export function dailyMilitary() {
     const nats = [...new Set(list.filter(a => !a.retreat).map(a => a.nat))];
     for (let i = 0; i < nats.length; i++) for (let j = i + 1; j < nats.length; j++) if (atWar(nats[i], nats[j])) {
       const p = S.P[pid], def = (p.ctrl === nats[j] || p.owner === nats[j]) ? nats[j] : nats[i], att = def === nats[i] ? nats[j] : nats[i];
-      S.battles.push({ prov: pid, a: att, b: def, days: 4 }); return;
+      const str = id => list.filter(a => a.nat === id).reduce((s, a) => s + a.troops * quality(S.nations[id]), 0);
+      const r = str(att) / Math.max(1, str(def));
+      S.battles.push({ prov: pid, a: att, b: def, days: r >= OVERRUN || r <= 1 / OVERRUN ? 1 : 4 }); return;
     }
   });
   for (const b of S.battles.slice()) if (--b.days <= 0) { S.battles = S.battles.filter(x => x !== b); resolveBattle(b.prov, b.a, b.b); }
@@ -73,6 +87,7 @@ export function dailyMilitary() {
     const ok = list.filter(a => !a.path.length && !a.retreat && siegeTarget(a.nat, p) && S.armies.includes(a));
     if (!ok.length) { if (p.siege && !list.some(a => a.nat === p.siege.nat)) p.siege = null; return; }
     const nat = ok[0].nat, tr = ok.filter(a => a.nat === nat).reduce((s, a) => s + a.troops, 0);
+    if (tr < garrison(p)) { if (p.siege && p.siege.nat === nat) p.siege = null; return; }   // too small to besiege
     if (!p.siege || p.siege.nat !== nat) p.siege = { nat, prog: 0 };
     const n = S.nations[nat], defender = p.ctrl != null ? S.nations[p.ctrl] : null;
     let days = 26 * (p.res === 'mount' ? 1.6 : 1) * (has(n, 'artillery') ? .6 : 1) * (1 + .35 * p.b.fort);
@@ -125,7 +140,8 @@ function resolveBattle(pid, attId, defId) {
   if (w) { const side = w.a === Wn.id ? 'a' : 'b'; w.bs[side] = Math.min(40, w.bs[side] + clamp(Math.round(lLoss / (lLoss + wLoss) * 12), 3, 12)); }
   emit('battle', { prov: pid, you: Wn.you || Ln.you });
   log(`Battle of ${PN(p)}: ${N(Wn)} defeats ${N(Ln)}. [[${Math.round(wLoss + lLoss)} dead]]`, null, (Wn.you || Ln.you) ? 5 : 3);
-  LA.forEach(a => retreat(a));
+  if (ratio <= 1 / OVERRUN) { LA.forEach(a => { lLoss += a.troops; a.troops = 0; }); log(`${N(Ln)}'s army at ${PN(p)} is overrun and destroyed.`, null, (Wn.you || Ln.you) ? 4 : 2); }
+  else LA.forEach(a => retreat(a));
   S.armies = S.armies.filter(a => a.troops >= 300);
 }
 function retreat(a) {
@@ -135,7 +151,7 @@ function retreat(a) {
     if (p.ctrl === n.id && !S.armies.some(o => o.prov === nx && atWar(o.nat, n.id))) { dest = nx; break; }
     q.push(nx);
   }
-  if (dest == null) { a.troops *= .5; return; }
+  if (dest == null) { a.troops = 0; if (n.you) log(`With nowhere to retreat, your army at ${PN(S.P[a.prov])} surrenders.`, 'bad', 4); return; }
   orderMove(a, dest); a.retreat = true;
 }
 export function nukeReady(n) { return S.day - n.lastNuke > D.balance.nukeCooldownYears * YEAR; }

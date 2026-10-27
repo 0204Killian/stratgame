@@ -38,8 +38,9 @@ export function aiArmies() {
         const p = S.P[pid], danger = es.get(pid) || 0;
         let v = -1e9;
         if (danger > 0) { const ratio = myStr / (danger + 1); if (ratio >= 1.15 && d <= 5) v = 60 - d * 8 + Math.min(30, ratio * 5); }
-        if (p.owner === n.id && p.ctrl !== n.id && enemies.has(p.ctrl)) v = Math.max(v, 70 - d * 7);
-        else if (enemies.has(p.ctrl) && enemies.has(p.owner)) v = Math.max(v, 40 + provValue(p) - d * 7);
+        const canSiege = a.troops >= garrison(p);
+        if (canSiege && p.owner === n.id && p.ctrl !== n.id && enemies.has(p.ctrl)) v = Math.max(v, 70 - d * 7);
+        else if (canSiege && enemies.has(p.ctrl) && enemies.has(p.owner)) v = Math.max(v, 40 + provValue(p) - d * 7);
         if (v > -1e9 && danger > myStr * .9) v -= 200;
         if (v > bv) { bv = v; best = pid; }
       }
