@@ -65,7 +65,9 @@ function tabProvince(ui) {
     ${G.devastated(pr) ? row('Status', 'Devastated until ' + dateStr(pr.devUntil), 'neg') : ''}
     ${pr.coastal ? row('Coast', pr.seaN.length ? `Sea routes to ${pr.seaN.map(i => esc(S.P[i].name)).join(', ')}` : 'Coastal') : ''}</dl>`;
   if (!p || !p.alive || S.phase !== 'game') return h;
-  if (!owner) h += `<p class="hint">Free land. March an army here to annex it. About ${kfmt(G.garrison(pr) * 3)} troops siege at full speed.</p>`;
+  if (!owner) h += G.canColonise(p.id, pr)
+    ? `<p class="hint">Free land. March an army here to annex it. About ${kfmt(G.garrison(pr) * 3)} troops siege at full speed.</p>`
+    : `<p class="hint">Free land, but out of reach. You can only annex land that borders your territory or has a sea route to one of your coastal provinces.</p>`;
   if (owner && owner.you && pr.ctrl === p.id) {
     h += `<h3>Buildings</h3><div class="blds">${Object.keys(D.buildings).map(k => {
       const B = D.buildings[k], lv = pr.b[k]; if (B.coast && !pr.coastal) return '';

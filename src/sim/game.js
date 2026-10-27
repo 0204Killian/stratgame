@@ -10,7 +10,7 @@ import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
-export { findPath, inBattle, nukeReady, siegeTarget } from './military.js';
+export { findPath, inBattle, nukeReady, siegeTarget, canColonise } from './military.js';
 export { provValue, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus } from './diplomacy.js';
 
 export const SAVE_VERSION = 1;

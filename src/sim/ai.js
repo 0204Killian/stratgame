@@ -1,7 +1,7 @@
 // AI army orders. Each army re-plans once a week, staggered across the days so big maps don't stutter.
 // Searches are limited to nearby provinces; armies with nothing in range head home.
 import { S, quality, garrison, warsOf, enemyIn } from './core.js';
-import { edges, canEnter, orderMove, siegeTarget } from './military.js';
+import { edges, canEnter, orderMove, siegeTarget, canColonise } from './military.js';
 import { provValue } from './diplomacy.js';
 
 const MAX_DEPTH = 12;
@@ -46,7 +46,7 @@ export function aiArmies() {
     } else {
       for (const [pid, d] of dist) {
         const p = S.P[pid];
-        if (p.owner != null || d > 6 || a.troops < garrison(p) * 1.5) continue;
+        if (p.owner != null || d > 6 || a.troops < garrison(p) * 1.5 || !canColonise(n.id, p)) continue;
         const v = 30 - d * 5 + p.pop * 3; if (v > bv) { bv = v; best = pid; }
       }
     }

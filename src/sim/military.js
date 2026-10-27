@@ -83,8 +83,15 @@ export function dailyMilitary() {
     if (p.siege.prog >= 1) completeSiege(p, nat);
   });
 }
+// Free land can only be colonised if it touches your own territory: a land border, or a sea route from one of your coastal provinces.
+export function canColonise(nid, p) {
+  if (p.owner != null) return false;
+  for (const q of p.landN) if (S.P[q].owner === nid) return true;
+  for (const q of p.seaN) if (S.P[q].owner === nid) return true;
+  return false;
+}
 export function siegeTarget(nid, p) {
-  if (p.owner == null) return true;
+  if (p.owner == null) return canColonise(nid, p);
   if (p.owner === nid) return p.ctrl !== nid && p.ctrl != null && atWar(nid, p.ctrl);
   return atWar(nid, p.ctrl);
 }
