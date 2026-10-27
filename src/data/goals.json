@@ -1,0 +1,18 @@
+{
+ "hegemon": {
+  "n": "Superpower",
+  "d": "Own 60% of all provinces."
+ },
+ "conquest": {
+  "n": "World conqueror",
+  "d": "Be the last nation standing."
+ },
+ "economy": {
+  "n": "Tycoon",
+  "d": "Triple your GDP and be the richest nation."
+ },
+ "survive": {
+  "n": "Survivor",
+  "d": "Still be standing in year 60."
+ }
+}

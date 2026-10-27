@@ -1,0 +1,77 @@
+[
+ {
+  "k": "first",
+  "n": "First victory",
+  "d": "Win any game"
+ },
+ {
+  "k": "conquest",
+  "n": "Emperor",
+  "d": "Win as World conqueror"
+ },
+ {
+  "k": "hegemon",
+  "n": "Hegemon",
+  "d": "Win as Superpower"
+ },
+ {
+  "k": "economy",
+  "n": "Robber baron",
+  "d": "Win as Tycoon"
+ },
+ {
+  "k": "survive",
+  "n": "Cockroach",
+  "d": "Win as Survivor"
+ },
+ {
+  "k": "hard",
+  "n": "Iron will",
+  "d": "Win on Hard"
+ },
+ {
+  "k": "underdog",
+  "n": "Underdog",
+  "d": "Win with the smallest starting population"
+ },
+ {
+  "k": "comeback",
+  "n": "Comeback",
+  "d": "Win after falling to one province"
+ },
+ {
+  "k": "blitz",
+  "n": "Lightning war",
+  "d": "Win a war with land gains inside a year"
+ },
+ {
+  "k": "glass",
+  "n": "Mutually assured",
+  "d": "Launch a nuclear strike"
+ },
+ {
+  "k": "friends",
+  "n": "Friends everywhere",
+  "d": "Have 3 allies at once"
+ },
+ {
+  "k": "pacifist",
+  "n": "Pacifist",
+  "d": "Win without ever declaring war"
+ },
+ {
+  "k": "trillion",
+  "n": "Five trillion",
+  "d": "Reach $5T GDP"
+ },
+ {
+  "k": "scholar",
+  "n": "Scholar",
+  "d": "Research 6 technologies in one game"
+ },
+ {
+  "k": "settler",
+  "n": "Settler",
+  "d": "Annex 5 free provinces in one game"
+ }
+]

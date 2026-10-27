@@ -1,0 +1,27 @@
+{
+ "factory": {
+  "n": "Factory",
+  "max": 3,
+  "c": "#ff8f6b",
+  "d": "+8% GDP now, +1.2% GDP growth a year per level"
+ },
+ "farm": {
+  "n": "Farms",
+  "max": 3,
+  "c": "#9ccc54",
+  "d": "+1% population growth a year per level; level 2 stops famine"
+ },
+ "fort": {
+  "n": "Fort",
+  "max": 3,
+  "c": "#d6cfb8",
+  "d": "+50% garrison, slower sieges, +8% defence per level"
+ },
+ "harbour": {
+  "n": "Harbour",
+  "max": 1,
+  "c": "#5dd6e0",
+  "d": "Acts as a port: armies can cross sea routes",
+  "coast": true
+ }
+}

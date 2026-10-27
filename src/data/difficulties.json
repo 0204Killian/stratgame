@@ -1,0 +1,23 @@
+{
+ "easy": {
+  "n": "Easy",
+  "q": 1.15,
+  "bias": -0.5,
+  "mult": 0.7,
+  "grace": 3
+ },
+ "normal": {
+  "n": "Normal",
+  "q": 1.05,
+  "bias": 0,
+  "mult": 1,
+  "grace": 2
+ },
+ "hard": {
+  "n": "Hard",
+  "q": 0.95,
+  "bias": 0.45,
+  "mult": 1.6,
+  "grace": 1
+ }
+}

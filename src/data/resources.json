@@ -1,0 +1,32 @@
+{
+ "oil": {
+  "n": "Oil field",
+  "c": "#f2b134",
+  "d": "+50% province GDP growth"
+ },
+ "farm": {
+  "n": "Farmland",
+  "c": "#9ccc54",
+  "d": "Faster population growth, fewer famines"
+ },
+ "port": {
+  "n": "Port",
+  "c": "#5dd6e0",
+  "d": "Lets your armies cross sea routes"
+ },
+ "mount": {
+  "n": "Mountains",
+  "c": "#d6cfb8",
+  "d": "+25% defence, sieges take longer"
+ },
+ "uranium": {
+  "n": "Uranium",
+  "c": "#c4e04a",
+  "d": "The bomb needs no extra research"
+ },
+ "factory": {
+  "n": "Factories",
+  "c": "#ff8f6b",
+  "d": "+5% battle strength each (max 2), faster reinforcing"
+ }
+}

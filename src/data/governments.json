@@ -1,0 +1,58 @@
+[
+ {
+  "k": "monarchy",
+  "n": "Absolute monarchy",
+  "agg": 0.45,
+  "stab": 0.6,
+  "f": "One crown, no arguments."
+ },
+ {
+  "k": "democracy",
+  "n": "Democracy",
+  "agg": 0.25,
+  "stab": 0.8,
+  "f": "Stable, but slow to go to war."
+ },
+ {
+  "k": "junta",
+  "n": "Military junta",
+  "agg": 0.7,
+  "stab": 0.4,
+  "f": "The generals are itching for a fight."
+ },
+ {
+  "k": "theocracy",
+  "n": "Theocracy",
+  "agg": 0.5,
+  "stab": 0.6,
+  "f": "Holy wars are on the table."
+ },
+ {
+  "k": "communist",
+  "n": "Communist state",
+  "agg": 0.45,
+  "stab": 0.55,
+  "f": "Five-year plans and parades."
+ },
+ {
+  "k": "corporate",
+  "n": "Corporate state",
+  "agg": 0.35,
+  "stab": 0.65,
+  "f": "The board will see you now."
+ },
+ {
+  "k": "tribal",
+  "n": "Tribal confederation",
+  "agg": 0.5,
+  "stab": 0.45,
+  "f": "Loyal clans. Mostly."
+ },
+ {
+  "k": "anarchy",
+  "n": "Anarchy",
+  "agg": 0.6,
+  "stab": 0.2,
+  "f": "Good luck holding this together."
+ }
+]

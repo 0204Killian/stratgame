@@ -1,0 +1,68 @@
+{
+ "month": 30,
+ "year": 360,
+ "upkeep": 2.5e-05,
+ "buildDays": 180,
+ "truceYears": 3,
+ "nukeCooldownYears": 3,
+ "maxYears": 120,
+ "startTax": 0.15,
+ "mapSizes": {
+  "small": {
+   "n": "Small",
+   "provinces": 48,
+   "grid": [
+    100,
+    70
+   ],
+   "nations": [
+    6,
+    8,
+    10
+   ],
+   "defNations": 8
+  },
+  "medium": {
+   "n": "Medium",
+   "provinces": 150,
+   "grid": [
+    175,
+    122
+   ],
+   "nations": [
+    8,
+    12,
+    16
+   ],
+   "defNations": 12
+  },
+  "large": {
+   "n": "Large",
+   "provinces": 380,
+   "grid": [
+    275,
+    192
+   ],
+   "nations": [
+    12,
+    16,
+    24
+   ],
+   "defNations": 16
+  },
+  "huge": {
+   "n": "Huge",
+   "provinces": 1000,
+   "grid": [
+    440,
+    308
+   ],
+   "nations": [
+    16,
+    24,
+    32
+   ],
+   "defNations": 24
+  }
+ }
+}

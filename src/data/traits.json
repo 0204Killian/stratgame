@@ -1,0 +1,42 @@
+[
+ {
+  "k": "nuke",
+  "n": "Nuclear weapons",
+  "f": "Nobody invades you lightly."
+ },
+ {
+  "k": "navy",
+  "n": "Huge navy",
+  "f": "Your armies can cross the sea anywhere."
+ },
+ {
+  "k": "mount",
+  "n": "Mountain fortresses",
+  "f": "Your provinces are slow to siege."
+ },
+ {
+  "k": "oil",
+  "n": "Oil reserves",
+  "f": "A richer economy every year."
+ },
+ {
+  "k": "spy",
+  "n": "Elite spies",
+  "f": "Enemy armies will have bad days."
+ },
+ {
+  "k": "famine",
+  "n": "Famine-prone",
+  "f": "Ouch. Keep an eye on the harvest."
+ },
+ {
+  "k": "diplo",
+  "n": "Best diplomats",
+  "f": "Alliances come easy."
+ },
+ {
+  "k": "unrest",
+  "n": "Civil unrest",
+  "f": "Provinces may try to break away."
+ }
+]

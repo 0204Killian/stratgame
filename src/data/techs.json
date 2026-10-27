@@ -1,0 +1,53 @@
+[
+ {
+  "k": "artillery",
+  "n": "Artillery",
+  "d": "+12% battle strength, sieges 40% faster"
+ },
+ {
+  "k": "radar",
+  "n": "Fortifications",
+  "d": "+20% defence at home, enemy sieges slower"
+ },
+ {
+  "k": "carriers",
+  "n": "Carrier fleet",
+  "d": "Cross any sea route"
+ },
+ {
+  "k": "green",
+  "n": "Green revolution",
+  "d": "No famines, faster growth"
+ },
+ {
+  "k": "propaganda",
+  "n": "Propaganda",
+  "d": "Revolutions and revolts much rarer"
+ },
+ {
+  "k": "industry",
+  "n": "Industrialisation",
+  "d": "Faster GDP growth everywhere"
+ },
+ {
+  "k": "logistics",
+  "n": "Logistics",
+  "d": "Army upkeep halved, 25% faster marches"
+ },
+ {
+  "k": "intel",
+  "n": "Spy network",
+  "d": "Sabotage enemy armies in wartime"
+ },
+ {
+  "k": "blitz",
+  "n": "Mechanised divisions",
+  "d": "Armies march twice as fast"
+ },
+ {
+  "k": "nukes",
+  "n": "The bomb",
+  "d": "Nuclear strikes in wartime",
+  "extra": 12
+ }
+]

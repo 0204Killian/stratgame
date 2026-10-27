@@ -1,0 +1,50 @@
+[
+ {
+  "k": "genius",
+  "n": "Genius strategist",
+  "q": 0.15,
+  "agg": 0.1,
+  "stab": 0.05,
+  "f": "Wins battles on paper and in the field."
+ },
+ {
+  "k": "paranoid",
+  "n": "Paranoid",
+  "q": 0,
+  "agg": 0.05,
+  "stab": 0.1,
+  "f": "Expect purges."
+ },
+ {
+  "k": "senile",
+  "n": "Senile",
+  "q": -0.1,
+  "agg": 0,
+  "stab": -0.15,
+  "f": "Unpredictable, and not in a good way."
+ },
+ {
+  "k": "hero",
+  "n": "Beloved hero",
+  "q": 0.08,
+  "agg": 0,
+  "stab": 0.25,
+  "f": "The people would die for them."
+ },
+ {
+  "k": "blood",
+  "n": "Bloodthirsty",
+  "q": 0.1,
+  "agg": 0.3,
+  "stab": -0.05,
+  "f": "Peace is not on the agenda."
+ },
+ {
+  "k": "coward",
+  "n": "Coward",
+  "q": -0.08,
+  "agg": -0.2,
+  "stab": 0,
+  "f": "Hides in the bunker at the first shot."
+ }
+]

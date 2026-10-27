@@ -1,0 +1,23 @@
+{
+  "name": "wheel-of-nations",
+  "productName": "Wheel of Nations",
+  "version": "0.2.0",
+  "description": "A real-time grand strategy game where the wheel decides your nation.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node tools/test-sim.mjs",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "game.wheelofnations",
+    "productName": "Wheel of Nations",
+    "files": ["main.js", "preload.js", "src/**/*"],
+    "win": { "target": "portable" }
+  }
+}

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'">
+<title>Wheel of Nations</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">Wheel <span>of</span> Nations</div>
+    <div class="tbnation" id="tbNation"></div>
+    <div class="tbdate"><span class="eyebrow">Date</span><b id="date">—</b></div>
+    <div class="speed" id="speedCtl" role="group" aria-label="Game speed">
+      <button id="pause" class="primary" title="Space">Play</button>
+      <button data-sp="1" title="Speed 1">1</button><button data-sp="2" title="Speed 2">2</button><button data-sp="3" title="Speed 3">3</button><button data-sp="4" title="Speed 4">4</button><button data-sp="5" title="Speed 5">5</button>
+    </div>
+    <div class="tbstats" id="tbStats">
+      <div class="stat" data-tab="econ"><span class="eyebrow">Treasury</span><b id="tTreasury">—</b></div>
+      <div class="stat" data-tab="econ"><span class="eyebrow">Monthly</span><b id="tIncome">—</b></div>
+      <div class="stat" data-tab="econ"><span class="eyebrow">Army / limit</span><b id="tArmy">—</b></div>
+      <div class="stat" data-tab="econ"><span class="eyebrow">Manpower</span><b id="tManpower">—</b></div>
+      <div class="stat" data-tab="tech"><span class="eyebrow">Research</span><b id="tResearch">—</b></div>
+    </div>
+    <div class="tbmenu">
+      <button id="btnSave" title="Ctrl+S">Save</button>
+      <button id="btnLoad" title="Ctrl+O">Load</button>
+      <button id="btnMenu" title="Esc">Menu</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="mapwrap">
+      <canvas id="map" aria-label="World map"></canvas>
+      <div id="ribbon" hidden></div>
+      <div id="tooltip" hidden></div>
+      <div id="mapctl">
+        <button id="zIn" title="Zoom in (+)">+</button><button id="zOut" title="Zoom out (−)">−</button><button id="zFit" title="Fit map (Home)">Fit</button>
+      </div>
+      <div id="hint">Left-click select · Shift-click add army · Right-click march · Wheel zoom · Drag pan · Space pause · F1–F6 tabs</div>
+
+      <div id="setup">
+        <div class="setupcard">
+          <div class="eyebrow">New game</div>
+          <h1>Spin your nation</h1>
+          <div class="setupopts">
+            <label class="opt"><span class="eyebrow">Goal</span>
+              <select id="goal"><option value="hegemon" selected>Superpower</option><option value="conquest">World conqueror</option><option value="economy">Tycoon</option><option value="survive">Survivor</option></select></label>
+            <label class="opt"><span class="eyebrow">Difficulty</span>
+              <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
+            <label class="opt"><span class="eyebrow">Map size</span>
+              <select id="mapSize"><option value="small">Small</option><option value="medium">Medium</option><option value="large" selected>Large</option><option value="huge">Huge</option></select></label>
+            <label class="opt"><span class="eyebrow">Nations</span>
+              <select id="size"></select></label>
+            <button id="newMap" class="opt-btn">New map</button>
+            <p class="hint" id="goalDesc"></p>
+          </div>
+          <div class="eyebrow" id="setupLabel">Your nation</div>
+          <div class="wheelrow">
+            <div class="wheelbox"><canvas id="wheel" aria-label="Spinning wheel. Click to spin."></canvas><div class="stamp" id="stamp"></div></div>
+            <div class="draft">
+              <div class="cur" id="draftName">Your nation</div>
+              <div class="flavor" id="flavor"></div>
+              <dl id="draftStats"></dl>
+            </div>
+          </div>
+          <div class="btns">
+            <button class="primary" id="spin">Spin</button>
+            <button id="respin">Respin</button>
+            <button id="spinRest">Auto-spin mine</button>
+            <button id="skip">Skip to the game</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside id="side">
+      <nav id="tabs"></nav>
+      <div id="tabbody"></div>
+    </aside>
+  </main>
+</div>
+<div id="modalLayer" hidden><div id="modal" class="modal" role="dialog" aria-modal="true"></div></div>
+<div id="toasts" aria-live="polite"></div>
+<script type="module" src="ui/app.js"></script>
+</body>
+</html>

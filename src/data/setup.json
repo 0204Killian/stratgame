@@ -1,0 +1,106 @@
+{
+ "pops": [
+  {
+   "n": "800,000",
+   "v": 0.8
+  },
+  {
+   "n": "3 million",
+   "v": 3
+  },
+  {
+   "n": "8 million",
+   "v": 8
+  },
+  {
+   "n": "20 million",
+   "v": 20
+  },
+  {
+   "n": "45 million",
+   "v": 45
+  },
+  {
+   "n": "90 million",
+   "v": 90
+  },
+  {
+   "n": "200 million",
+   "v": 200
+  }
+ ],
+ "mils": [
+  {
+   "n": "0.5% in uniform",
+   "v": 0.5
+  },
+  {
+   "n": "1% in uniform",
+   "v": 1
+  },
+  {
+   "n": "2% in uniform",
+   "v": 2
+  },
+  {
+   "n": "3% in uniform",
+   "v": 3
+  },
+  {
+   "n": "5% in uniform",
+   "v": 5
+  },
+  {
+   "n": "8% in uniform",
+   "v": 8
+  }
+ ],
+ "ecos": [
+  {
+   "n": "$5B GDP",
+   "v": 5
+  },
+  {
+   "n": "$20B GDP",
+   "v": 20
+  },
+  {
+   "n": "$80B GDP",
+   "v": 80
+  },
+  {
+   "n": "$250B GDP",
+   "v": 250
+  },
+  {
+   "n": "$700B GDP",
+   "v": 700
+  },
+  {
+   "n": "$2T GDP",
+   "v": 2000
+  }
+ ],
+ "tiers": [
+  [
+   "Grim.",
+   "Oof. The neighbours are laughing.",
+   "That hurts."
+  ],
+  [
+   "Modest.",
+   "Could be worse.",
+   "Workable."
+  ],
+  [
+   "Solid.",
+   "Now we are talking.",
+   "Respectable."
+  ],
+  [
+   "Jackpot.",
+   "Absolute unit.",
+   "Fear us."
+  ]
+ ]
+}
