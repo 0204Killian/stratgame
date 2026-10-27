@@ -9,7 +9,8 @@ function bfsDist(n, from) {
   const dist = new Map([[from, 0]]), q = [from];
   for (let i = 0; i < q.length; i++) {
     const c = q[i], d = dist.get(c); if (d >= MAX_DEPTH) continue;
-    for (const nx of edges(n, S.P[c])) { if (dist.has(nx) || !canEnter(n.id, S.P[nx])) continue; dist.set(nx, d + 1); q.push(nx); }
+    // ocean crossings only straight from where the army stands
+    for (const nx of edges(n, S.P[c], d === 0)) { if (dist.has(nx) || !canEnter(n.id, S.P[nx])) continue; dist.set(nx, d + 1); q.push(nx); }
   }
   return dist;
 }

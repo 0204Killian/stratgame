@@ -33,8 +33,48 @@ export function dailyAttrition() {
 }
 export const seaOK = n => n.trait === 'navy' || has(n, 'carriers');
 const hasPort = n => memo('port' + n.id, () => S.P.some(q => q.owner === n.id && q.ctrl === n.id && isPort(q)));
-export function edges(n, p) {
+// ---------- Oceans ----------
+// Water bodies are worked out once per map from the grid: which coastal provinces share each connected body of water.
+let oceanCache = null;
+function oceans() {
+  if (oceanCache && oceanCache.P === S.P) return oceanCache;
+  const W = S.W, H = S.H, N = W * H, body = new Int32Array(N).fill(-1), byBody = [];
+  let nb = 0;
+  for (let i = 0; i < N; i++) {
+    if (S.land[i] || body[i] >= 0) continue;
+    const q = [i]; body[i] = nb;
+    for (let h = 0; h < q.length; h++) { const c = q[h], x = c % W;
+      for (const j of [x > 0 ? c - 1 : -1, x < W - 1 ? c + 1 : -1, c - W, c + W]) if (j >= 0 && j < N && !S.land[j] && body[j] < 0) { body[j] = nb; q.push(j); } }
+    byBody.push(new Set()); nb++;
+  }
+  const bodiesOf = S.P.map(() => new Set());
+  for (let i = 0; i < N; i++) {
+    if (!S.land[i]) continue; const r = S.reg[i]; if (r < 0) continue; const x = i % W;
+    for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i - W, i + W]) if (j >= 0 && j < N && !S.land[j]) { bodiesOf[r].add(body[j]); byBody[body[j]].add(r); }
+  }
+  oceanCache = { P: S.P, bodiesOf: bodiesOf.map(s => [...s]), coasts: byBody.map(s => [...s]), reach: [] };
+  return oceanCache;
+}
+// Ocean-going: Carrier Fleet tech or the Huge Navy trait.
+export const oceanOK = n => n.trait === 'navy' || has(n, 'carriers');
+// Can this nation set sail across open ocean from province p? Needs a port, or the Huge Navy trait.
+const oceanFrom = (n, p) => p.coastal && oceanOK(n) && p.ctrl === n.id && (n.trait === 'navy' || isPort(p) || (p.owner === n.id && hasPort(n)));
+// Every coastal province sharing a body of water with p.
+export function oceanReach(p) {
+  const o = oceans(); if (o.reach[p.id]) return o.reach[p.id];
+  const out = new Set();
+  for (const b of o.bodiesOf[p.id]) for (const q of o.coasts[b]) if (q !== p.id) out.add(q);
+  return (o.reach[p.id] = [...out]);
+}
+// Bodies of water this nation can launch an ocean crossing into today.
+const launchBodies = n => memo('ob' + n.id, () => {
+  const o = oceans(), out = new Set();
+  for (const q of S.P) if (q.ctrl === n.id && oceanFrom(n, q)) for (const b of o.bodiesOf[q.id]) out.add(b);
+  return out;
+});
+export function edges(n, p, ocean = true) {
   const out = p.landN.slice();
+  if (ocean && oceanFrom(n, p)) { const seen = new Set(out); for (const q of oceanReach(p)) if (!seen.has(q)) out.push(q); return out; }
   if (seaOK(n) || (isPort(p) && p.ctrl === n.id) || (p.coastal && p.owner === n.id && hasPort(n))) for (const q of p.seaN) out.push(q);
   return out;
 }
@@ -54,7 +94,9 @@ export function findPath(n, from, to) {
   return null;
 }
 export function hopDays(n, a, to) {
-  let d = 6; if (S.P[to].res === 'mount') d += 4; if (!S.P[a.prov].landN.includes(to)) d *= 1.6;
+  const from = S.P[a.prov], dest = S.P[to];
+  let d = 6; if (dest.res === 'mount') d += 4;
+  if (!from.landN.includes(to)) { const cells = Math.hypot(from.cx - dest.cx, from.cy - dest.cy) / (S.CS || 8); d = Math.max(d * 1.6, 4 + cells / 4); }
   if (has(n, 'logistics')) d *= .8; if (has(n, 'blitz')) d *= .5;
   return Math.max(1.5, d);
 }
@@ -109,6 +151,8 @@ export function canColonise(nid, p) {
   if (p.owner != null) return false;
   for (const q of p.landN) if (S.P[q].owner === nid) return true;
   for (const q of p.seaN) if (S.P[q].owner === nid) return true;
+  const n = S.nations[nid];
+  if (p.coastal && oceanOK(n)) { const lb = launchBodies(n); for (const b of oceans().bodiesOf[p.id]) if (lb.has(b)) return true; }
   return false;
 }
 export function siegeTarget(nid, p) {
