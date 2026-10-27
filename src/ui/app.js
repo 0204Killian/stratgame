@@ -203,7 +203,13 @@ function onPanelClick(e) {
     case 'ally': { const r = G.cmdProposeAlliance(+arg); if (r.ok) toast(r.accepted ? 'Alliance signed' : 'Refused', S.nations[+arg].name, r.accepted ? 'They will defend you, and call you to their wars.' : 'They turned you down. Try again in a year.', r.accepted ? '' : 'bad'); else result(r); refreshPanel(true); break; }
     case 'unally': result(G.cmdBreakAlliance(+arg)); break;
     case 'nuke': if (confirm2('nuke:' + arg)) result(G.cmdNuke(+arg)); break;
-    case 'peace': { const ids = ui.peaceSel[+arg] || []; const r = result(G.cmdPeace(+arg, ids)); if (r.ok) { sfx.found(); delete ui.peaceSel[+arg]; } break; }
+    case 'peace': {
+      const w = S.wars.find(x => x.id === +arg), p = G.player(), sel = ui.peaceSel[+arg]; if (!w || !sel) break;
+      const e = G.enemyIn(w, p.id), mode = sel.mode || (G.warScore(w, p.id) >= 0 ? 'demand' : 'offer');
+      const r = result(G.cmdPeace(+arg, { to: mode === 'demand' ? p.id : e, provs: sel.provs, gold: sel.gold, reps: sel.reps, allies: sel.allies }));
+      if (r.ok) { sfx.found(); delete ui.peaceSel[+arg]; } break;
+    }
+    case 'pmode': { const [w, m] = arg.split(':'); ui.peaceSel[+w] = { mode: m, provs: [], gold: 0, reps: false, allies: false }; refreshPanel(true); break; }
     case 'white': result(G.cmdPeace(+arg, [])); break;
     case 'research': { const r = result(G.cmdResearch(arg), ['Technology', D.techMap[arg].n, D.techMap[arg].d]); if (r.ok) sfx.ding(); break; }
   }
@@ -214,9 +220,11 @@ function onPanelInput(e) {
   else if (t.id === 'sCon') G.cmdPolicy({ milPct: +t.value });
   else if (t.id === 'sMnt') G.cmdPolicy({ maint: +t.value / 100 });
   else if (t.id === 'rProv') ui.recProv = +t.value;
-  else if (t.dataset.act === 'demand' && e.type === 'change') {
-    const [w, pid] = t.dataset.arg.split(':').map(Number), arr = ui.peaceSel[w] || (ui.peaceSel[w] = []);
-    if (t.checked) { if (!arr.includes(pid)) arr.push(pid); } else arr.splice(arr.indexOf(pid), 1);
+  else if (t.dataset.act === 'pterm' && e.type === 'change') {
+    const [w, k, v] = t.dataset.arg.split(':'), sel = ui.peaceSel[+w]; if (!sel) return;
+    if (k === 'prov') { const pid = +v; if (t.checked) { if (!sel.provs.includes(pid)) sel.provs.push(pid); } else sel.provs = sel.provs.filter(x => x !== pid); }
+    else if (k === 'gold') sel.gold = +t.value;
+    else sel[k] = t.checked;
     refreshPanel(true); return;
   } else return;
   if (ui.tab === 'econ') updateEcon(ui);

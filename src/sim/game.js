@@ -4,14 +4,14 @@ import { S, D, setState, setData, R, pick, rnd, newNationName, clamp, MONTH, YEA
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
 import { makeArmy, orderMove, dailyMilitary, nuke, nukeReady } from './military.js';
-import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance } from './diplomacy.js';
+import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation } from './economy.js';
 import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
 export { findPath, inBattle, nukeReady, siegeTarget, canColonise } from './military.js';
-export { provValue, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus } from './diplomacy.js';
+export { provValue, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
 export const SAVE_VERSION = 1;
 export function init(data) { setData(data); }
@@ -196,10 +196,14 @@ export function cmdNuke(provId) {
   if (!nukeReady(p)) return fail('Your nuclear arsenal is rearming.');
   nuke(p, pr); return { ok: true };
 }
-export function cmdPeace(warId, provIds) {
+// deal.to is who receives the terms: the player when demanding, the enemy when offering. Empty deal = white peace.
+export function cmdPeace(warId, deal) {
   const p = player(), w = S.wars.find(x => x.id === warId); if (!w || (w.a !== p.id && w.b !== p.id)) return fail('No such war.');
-  if (!aiAccepts(w, p.id, provIds)) return fail('They refuse these terms.');
-  makePeace(w, p.id, provIds, ''); return { ok: true };
+  deal = normDeal(deal, p.id); if (deal.to !== w.a && deal.to !== w.b) return fail('Invalid treaty.');
+  const loserId = deal.to === w.a ? w.b : w.a;
+  deal.provs = deal.provs.filter(id => S.P[id] && S.P[id].owner === loserId && S.P[id].ctrl === deal.to);
+  if (!aiAccepts(w, p.id, deal)) return fail('They refuse these terms.');
+  makePeace(w, deal.to, deal, ''); return { ok: true };
 }
 export function cmdResearch(k) {
   const p = player(), t = D.techMap[k]; if (!p || !t || !S.techOffers.includes(k)) return fail('Not available.');

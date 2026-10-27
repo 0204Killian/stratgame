@@ -1,5 +1,5 @@
 // Wars, war score, peace deals, alliances, AI war declarations.
-import { S, D, R, clamp, MONTH, YEAR, N, PN, log, emit, gov, leader, popOf, troopsOf, provsOf, neighbours, warBetween, atWar, warsOf, enemyIn, allied, truceWith, player, addDecision, unlockMedal, trait } from './core.js';
+import { S, D, R, clamp, MONTH, YEAR, N, PN, log, emit, gov, leader, popOf, troopsOf, monthlyIncome, provsOf, neighbours, warBetween, atWar, warsOf, enemyIn, allied, truceWith, player, addDecision, unlockMedal, trait } from './core.js';
 import { orderMove } from './military.js';
 
 export function provValue(p) {
@@ -35,10 +35,49 @@ export function surrenderStatus(w, winnerId) {
 }
 export const occupiedBy = (w, winnerId) => { const loser = enemyIn(w, winnerId); return S.P.filter(p => p.owner === loser && p.ctrl === winnerId); };
 export const demandCost = ids => ids.reduce((s, i) => s + provValue(S.P[i]), 0);
-export function aiAccepts(w, demanderId, ids) {
-  const sc = warScore(w, demanderId);
-  if (!ids.length) return sc >= -15 || S.day - w.start > 4 * YEAR;
-  return demandCost(ids) <= Math.max(0, sc);
+
+// ---------- Peace treaties ----------
+// A deal is always paid by the loser to the winner (deal.to):
+//   provs: occupied provinces ceded · gold: 0-3 lumps of 6 months' income · reps: reparations · allies: loser breaks its alliances
+export const TERMS = { goldStep: 8, goldMonths: 6, goldMax: 3, reps: 15, repsPct: .2, repsYears: 5, allies: 10, whiteBand: 10 };
+export function normDeal(d, to) {
+  if (Array.isArray(d)) d = { provs: d };
+  return { to: d.to ?? to, provs: (d.provs || []).slice(), gold: clamp(d.gold | 0, 0, TERMS.goldMax), reps: !!d.reps, allies: !!d.allies };
+}
+export const goldAmount = (loser, steps) => steps * TERMS.goldMonths * Math.max(0, monthlyIncome(loser).inc);
+export function dealCost(deal) {
+  return demandCost(deal.provs) + deal.gold * TERMS.goldStep + (deal.reps ? TERMS.reps : 0) + (deal.allies ? TERMS.allies : 0);
+}
+export const isWhite = d => !d.provs.length && !d.gold && !d.reps && !d.allies;
+// What the AI needs to agree to a treaty proposed by the player.
+export function aiAccepts(w, playerId, deal) {
+  deal = normDeal(deal, playerId);
+  const ai = enemyIn(w, playerId), aiSc = warScore(w, ai), cost = dealCost(deal);
+  if (isWhite(deal)) return aiSc <= TERMS.whiteBand;
+  if (deal.to === playerId) return cost <= Math.max(0, -aiSc) && cost <= 100;   // player demands
+  return cost >= requiredOffer(w, ai);                                                // player concedes
+}
+export function requiredOffer(w, aiId) {
+  const s = warScore(w, aiId); if (s <= TERMS.whiteBand) return 0;
+  return Math.round(s * (S.day - w.start > 4 * YEAR ? .5 : .8));
+}
+// AI-built treaty: provinces first, then reparations, gold, alliances, up to the budget.
+export function bestDeal(w, winnerId, budget) {
+  const loser = S.nations[enemyIn(w, winnerId)];
+  const d = normDeal({ provs: bestDemand(w, winnerId, budget) }, winnerId);
+  let left = budget - demandCost(d.provs);
+  if (left >= TERMS.reps) { d.reps = true; left -= TERMS.reps; }
+  while (left >= TERMS.goldStep && d.gold < TERMS.goldMax && goldAmount(loser, 1) > 0) { d.gold++; left -= TERMS.goldStep; }
+  if (left >= TERMS.allies && loser.allies.length) { d.allies = true; left -= TERMS.allies; }
+  return d;
+}
+export function describeDeal(d, w, mark) {
+  const loser = S.nations[enemyIn(w, d.to)], parts = [];
+  if (d.provs.length) parts.push((mark ? d.provs.map(i => PN(S.P[i])) : d.provs.map(i => S.P[i].name)).join(', '));
+  if (d.gold) parts.push(`${d.gold * TERMS.goldMonths} months of income in gold`);
+  if (d.reps) parts.push(`war reparations for ${TERMS.repsYears} years`);
+  if (d.allies) parts.push(`${mark ? N(loser) : loser.name} breaks its alliances`);
+  return parts.join('; ');
 }
 export function bestDemand(w, winnerId, budget) {
   const opts = occupiedBy(w, winnerId).sort((x, y) => provValue(y) - provValue(x));
@@ -65,11 +104,15 @@ export function declareWar(att, def, silent) {
   return w;
 }
 function atWarAfter(nid, p, w) { return S.wars.some(x => x !== w && ((x.a === nid && (x.b === p.owner || x.b === p.ctrl)) || (x.b === nid && (x.a === p.owner || x.a === p.ctrl)))); }
-export function makePeace(w, winnerId, provIds, note, forced) {
+export function makePeace(w, winnerId, deal, note, forced) {
   if (!S.wars.includes(w)) return;
+  deal = normDeal(deal, winnerId);
   const loserId = enemyIn(w, winnerId), win = S.nations[winnerId], lose = S.nations[loserId];
-  provIds = provIds.filter(id => S.P[id].owner === loserId);
-  provIds.forEach(id => { const p = S.P[id]; p.owner = winnerId; p.ctrl = winnerId; p.siege = null; if (p.build) p.build = null; });
+  deal.provs = deal.provs.filter(id => S.P[id].owner === loserId);
+  deal.provs.forEach(id => { const p = S.P[id]; p.owner = winnerId; p.ctrl = winnerId; p.siege = null; if (p.build) p.build = null; });
+  if (deal.gold) { const g = goldAmount(lose, deal.gold); lose.treasury -= g; win.treasury += g; }
+  if (deal.reps) (lose.reps || (lose.reps = [])).push({ to: winnerId, until: S.day + TERMS.repsYears * YEAR });
+  if (deal.allies) { for (const x of lose.allies) S.nations[x].allies = S.nations[x].allies.filter(y => y !== loserId); lose.allies = []; }
   for (const p of S.P) if ((p.owner === w.a && p.ctrl === w.b) || (p.owner === w.b && p.ctrl === w.a)) { p.ctrl = p.owner; p.siege = null; }
   S.wars = S.wars.filter(x => x !== w);
   for (const a of S.armies) {
@@ -79,10 +122,16 @@ export function makePeace(w, winnerId, provIds, note, forced) {
   const tr = S.day + D.balance.truceYears * YEAR;
   win.truce[loserId] = tr; lose.truce[winnerId] = tr;
   if (forced) log(`${N(lose)} has collapsed, its land overrun and its army broken. ${N(win)} dictates the peace.`, 'big', win.you || lose.you ? 8 : 5);
-  if (provIds.length) log(`Peace: ${N(lose)} cedes ${provIds.map(i => PN(S.P[i])).join(', ')} to ${N(win)}.`, 'big', win.you || lose.you ? 7 : 5);
+  if (!isWhite(deal)) log(`Peace: ${N(lose)} yields to ${N(win)}: ${describeDeal(deal, w, true)}.`, 'big', win.you || lose.you ? 7 : 5);
   else log(`White peace between ${N(win)} and ${N(lose)}. ${note || ''}`, null, 4);
-  if (win.you && provIds.length && S.day - w.start <= YEAR) unlockMedal('blitz');
+  if (win.you && deal.provs.length && S.day - w.start <= YEAR) unlockMedal('blitz');
   checkFallen(); S.mapVersion++;
+}
+// Monthly reparation payments: a share of the payer's income goes to the winner.
+export function payReparations(n, income) {
+  if (!n.reps || !n.reps.length) return;
+  n.reps = n.reps.filter(r => r.until > S.day && S.nations[r.to].alive);
+  for (const r of n.reps) { const amt = Math.max(0, income) * TERMS.repsPct; n.treasury -= amt; S.nations[r.to].treasury += amt; }
 }
 export function checkFallen() {
   for (const n of S.nations) {
@@ -108,16 +157,16 @@ export function warMonthly(w) {
     if (S.day - w.lastOffer < 6 * MONTH || age < 6 * MONTH) return;
     if (S.decisions.some(d => d.kind === 'peace' && d.data.war === w.id)) return;
     if (!winner.you && sc >= 30 && R() < .3) {
-      w.lastOffer = S.day; const ids = bestDemand(w, winner.id, sc); if (!ids.length) return;
-      addDecision({ kind: 'peace', title: `${winner.name} offers peace`, text: `War score ${sc}% in their favour. They demand ${ids.map(i => S.P[i].name).join(', ')}.`, choices: [{ l: 'Accept', s: `Cede ${ids.length} province${ids.length > 1 ? 's' : ''}` }, { l: 'Fight on', s: 'Refuse the terms' }], data: { war: w.id, winner: winner.id, ids, refuse: 'The war continues.' } });
+      w.lastOffer = S.day; const deal = bestDeal(w, winner.id, sc); if (isWhite(deal)) return;
+      addDecision({ kind: 'peace', title: `${winner.name} offers peace`, text: `War score ${sc}% in their favour. Their terms: ${describeDeal(deal, w)}.`, choices: [{ l: 'Accept', s: 'Sign the treaty' }, { l: 'Fight on', s: 'Refuse the terms' }], data: { war: w.id, winner: winner.id, deal, refuse: 'The war continues.' } });
     } else if (winner.you && sc >= 50 && age >= YEAR && R() < .25) {
-      w.lastOffer = S.day; const ids = bestDemand(w, winner.id, Math.round(sc * .8)); if (!ids.length) return;
-      addDecision({ kind: 'peace', title: `${loser.name} sues for peace`, text: `They are losing (${sc}% war score) and offer you ${ids.map(i => S.P[i].name).join(', ')}.`, choices: [{ l: 'Accept', s: `Gain ${ids.length} province${ids.length > 1 ? 's' : ''}` }, { l: 'Fight on', s: 'Hold out for more' }], data: { war: w.id, winner: winner.id, ids, refuse: 'Your generals press on.' } });
+      w.lastOffer = S.day; const deal = bestDeal(w, winner.id, Math.round(sc * .8)); if (isWhite(deal)) return;
+      addDecision({ kind: 'peace', title: `${loser.name} sues for peace`, text: `They are losing (${sc}% war score) and offer: ${describeDeal(deal, w)}.`, choices: [{ l: 'Accept', s: 'Sign the treaty' }, { l: 'Fight on', s: 'Hold out for more' }], data: { war: w.id, winner: winner.id, deal, refuse: 'Your generals press on.' } });
     }
     return;
   }
-  if (sc >= 25 && age >= 8 * MONTH && R() < .35) { const ids = bestDemand(w, winner.id, sc); if (ids.length) { makePeace(w, winner.id, ids); return; } }
-  if (age >= 3 * YEAR && sc < 25 && R() < .2) makePeace(w, winner.id, [], 'Both sides are exhausted.');
+  if ((sc >= 25 && age >= 8 * MONTH && R() < .35) || (sc >= TERMS.whiteBand && age >= 3 * YEAR && R() < .2)) { const deal = bestDeal(w, winner.id, sc); if (!isWhite(deal)) { makePeace(w, winner.id, deal); return; } }
+  if (age >= 3 * YEAR && sc < TERMS.whiteBand && R() < .2) makePeace(w, winner.id, [], 'Both sides are exhausted.');
 }
 export function allianceChance(p, t) {
   if (S.day - t.lastAsk < YEAR) return 0;

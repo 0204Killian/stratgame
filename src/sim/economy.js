@@ -1,7 +1,7 @@
 // Monthly economy, growth, construction, recruitment, research and internal politics.
 import { S, D, R, pick, rnd, newNationName, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, resCount, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar, buildCost } from './core.js';
 import { makeArmy, nuke, nukeReady, orderMove } from './military.js';
-import { declareWar, warScore } from './diplomacy.js';
+import { declareWar, warScore, payReparations } from './diplomacy.js';
 import { createNation } from './nation.js';
 
 export function revolt(n) {
@@ -41,7 +41,7 @@ export function monthlyNation(n) {
       if (n.you) { log(`${D.buildings[k].n} level ${p.b[k]} completed in ${PN(p)}.`, null, 3); emit('toast', { lab: 'Construction complete', title: `${D.buildings[k].n} · ${p.name}`, sub: D.buildings[k].d }); }
     }
   }
-  const m = monthlyIncome(n); n.treasury += m.net;
+  const m = monthlyIncome(n); n.treasury += m.net; payReparations(n, m.inc);
   if (n.treasury < 0) { armiesOf(n).forEach(a => a.troops *= .97); if (n.you && R() < .3) log(`${N(n)} cannot pay its armies. Soldiers are deserting.`, 'bad', 3); }
   const fl = forceLimit(n); n.manpower = Math.min(fl * .5, n.manpower + fl * .025);
   // reinforce idle armies standing in friendly land

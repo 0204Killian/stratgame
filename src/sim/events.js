@@ -59,7 +59,7 @@ export function resolveDecision(id, idx) {
     else { al.allies = al.allies.filter(x => x !== def.id); def.allies = def.allies.filter(x => x !== al.id); out = `${def.name} will not forget this. The alliance is over.`; }
   } else if (d.kind === 'peace') {
     const w = S.wars.find(x => x.id === d.data.war);
-    if (idx === 0) { if (w) makePeace(w, d.data.winner, d.data.ids); out = w ? 'The treaty is signed.' : 'The war has already ended.'; }
+    if (idx === 0) { if (w) makePeace(w, d.data.winner, d.data.deal || d.data.ids); out = w ? 'The treaty is signed.' : 'The war has already ended.'; }
     else out = d.data.refuse;
   }
   log(`${d.title}: ${out}`, null, 1);
