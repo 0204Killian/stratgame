@@ -173,9 +173,12 @@ function tabWars(ui) {
     const chosen = ui.peaceSel[w.id] || (ui.peaceSel[w.id] = []);
     for (const id of chosen.slice()) if (!occ.some(q => q.id === id)) chosen.splice(chosen.indexOf(id), 1);
     const cost = G.demandCost(chosen), okD = chosen.length && G.aiAccepts(w, p.id, chosen), okW = G.aiAccepts(w, p.id, []);
+    const them = G.surrenderStatus(w, p.id), us = G.surrenderStatus(w, e.id), pc = x => Math.round(Math.max(0, x) * 100);
+    const coll = (s, who) => `${who}: land occupied ${pc(s.landPct)}% / 100% · army lost ${pc(s.lost)}% / 70%`;
     h += `<div class="war"><div class="warhead">${chip(e)}${natName(e)}<span class="sub">since ${dateStr(w.start)}</span></div>
       <div class="score"><span class="mid"></span><span class="fill ${sc >= 0 ? 'pos' : 'neg'}" style="${sc >= 0 ? `left:50%;width:${sc / 2}%` : `right:50%;width:${-sc / 2}%`}"></span></div>
       <div class="hint">War score ${sc > 0 ? '+' : ''}${sc}% · you occupy ${occ.length} of their provinces · battles ${w.a === p.id ? w.bs.a : w.bs.b}% vs ${w.a === p.id ? w.bs.b : w.bs.a}%</div>
+      <div class="hint">Forced surrender when both are met. ${coll(them, 'Them')}. ${coll(us, 'You')}.</div>
       ${occ.length ? `<div class="demands">${occ.map(q => `<label class="dm"><input type="checkbox" data-act="demand" data-arg="${w.id}:${q.id}" ${chosen.includes(q.id) ? 'checked' : ''}> ${esc(q.name)}<span class="sub"> · ${D.resources[q.res].n} · costs ${G.provValue(q)}%</span></label>`).join('')}</div>` : ''}
       <div class="btns">${occ.length ? btn('peace', w.id, `Demand ${chosen.length ? `${chosen.length} · ${cost}%` : 'provinces'}${chosen.length && !okD ? ' · they refuse' : ''}`, { cls: okD ? 'primary' : '', dis: !okD }) : ''}
       ${btn('white', w.id, 'White peace' + (okW ? '' : ' · they refuse'), { dis: !okW })}</div></div>`;

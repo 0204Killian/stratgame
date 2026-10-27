@@ -17,6 +17,22 @@ export function warScore(w, side) {
   s = clamp(s, -100, 100);
   return side === a ? s : -s;
 }
+// Track each side's largest army during the war, so "troops lost" is measured against what they fielded.
+export function trackPeak(w) {
+  if (!w.peak) w.peak = { a: 0, b: 0 };
+  w.peak.a = Math.max(w.peak.a, troopsOf(S.nations[w.a]));
+  w.peak.b = Math.max(w.peak.b, troopsOf(S.nations[w.b]));
+}
+// Forced settlement: loser has 100% of its territory occupied AND has lost at least 70% of its peak troops.
+export function surrenderStatus(w, winnerId) {
+  trackPeak(w);
+  const loserId = enemyIn(w, winnerId), loser = S.nations[loserId];
+  const all = provsOf(loser), occ = all.filter(p => p.ctrl === winnerId).length;
+  const peak = loserId === w.a ? w.peak.a : w.peak.b, now = troopsOf(loser);
+  const lost = peak > 0 ? 1 - now / peak : 1;
+  const landPct = all.length ? occ / all.length : 1;
+  return { landPct, lost, forced: landPct >= 1 && lost >= .7 };
+}
 export const occupiedBy = (w, winnerId) => { const loser = enemyIn(w, winnerId); return S.P.filter(p => p.owner === loser && p.ctrl === winnerId); };
 export const demandCost = ids => ids.reduce((s, i) => s + provValue(S.P[i]), 0);
 export function aiAccepts(w, demanderId, ids) {
@@ -36,7 +52,7 @@ export function declareWar(att, def, silent) {
   if (atWar(att.id, def.id)) return warBetween(att.id, def.id);
   if (att.allies.includes(def.id)) { att.allies = att.allies.filter(x => x !== def.id); def.allies = def.allies.filter(x => x !== att.id); }
   const w = { id: S.nextWarId++, a: att.id, b: def.id, start: S.day, bs: { a: 0, b: 0 }, lastOffer: S.day };
-  S.wars.push(w);
+  S.wars.push(w); trackPeak(w);
   if (!silent) log(`${N(att)} declares war on ${N(def)}.`, 'big', att.you || def.you ? 7 : 5);
   if (att.you && !silent) S.st.declared = true;
   for (const x of def.allies.slice()) {
@@ -49,7 +65,7 @@ export function declareWar(att, def, silent) {
   return w;
 }
 function atWarAfter(nid, p, w) { return S.wars.some(x => x !== w && ((x.a === nid && (x.b === p.owner || x.b === p.ctrl)) || (x.b === nid && (x.a === p.owner || x.a === p.ctrl)))); }
-export function makePeace(w, winnerId, provIds, note) {
+export function makePeace(w, winnerId, provIds, note, forced) {
   if (!S.wars.includes(w)) return;
   const loserId = enemyIn(w, winnerId), win = S.nations[winnerId], lose = S.nations[loserId];
   provIds = provIds.filter(id => S.P[id].owner === loserId);
@@ -62,6 +78,7 @@ export function makePeace(w, winnerId, provIds, note) {
   }
   const tr = S.day + D.balance.truceYears * YEAR;
   win.truce[loserId] = tr; lose.truce[winnerId] = tr;
+  if (forced) log(`${N(lose)} has collapsed, its land overrun and its army broken. ${N(win)} dictates the peace.`, 'big', win.you || lose.you ? 8 : 5);
   if (provIds.length) log(`Peace: ${N(lose)} cedes ${provIds.map(i => PN(S.P[i])).join(', ')} to ${N(win)}.`, 'big', win.you || lose.you ? 7 : 5);
   else log(`White peace between ${N(win)} and ${N(lose)}. ${note || ''}`, null, 4);
   if (win.you && provIds.length && S.day - w.start <= YEAR) unlockMedal('blitz');
@@ -86,7 +103,7 @@ export function warMonthly(w) {
   if (!A.alive || !B.alive) { S.wars = S.wars.filter(x => x !== w); return; }
   const age = S.day - w.start, sa = warScore(w, w.a);
   const winner = sa >= 0 ? A : B, loser = sa >= 0 ? B : A, sc = Math.abs(sa);
-  if (sc >= 100) { makePeace(w, winner.id, occupiedBy(w, winner.id).map(p => p.id)); return; }
+  if (surrenderStatus(w, winner.id).forced) { makePeace(w, winner.id, occupiedBy(w, winner.id).map(p => p.id), '', true); return; }
   if (winner.you || loser.you) {
     if (S.day - w.lastOffer < 6 * MONTH || age < 6 * MONTH) return;
     if (S.decisions.some(d => d.kind === 'peace' && d.data.war === w.id)) return;
