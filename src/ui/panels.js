@@ -156,7 +156,7 @@ export function updateEcon(ui) {
   if ($('rProv').dataset.sig !== sig) { $('rProv').innerHTML = r.ps.map(q => `<option value="${q.id}">${esc(q.name)}${q.id === p.cap ? ' (capital)' : ''}</option>`).join(''); $('rProv').dataset.sig = sig; }
   if (r.prov != null && document.activeElement !== $('rProv') && +$('rProv').value !== r.prov) $('rProv').value = r.prov;
   set('vTroops', r.max >= 1000 ? num(r.tr) : '—');
-  set('rInfo', r.max < 1000 ? (G.troopsOf(p) >= fl ? 'You are at your force limit. Raise conscription or discharge troops.' : 'Not enough manpower yet. It refills every month.') : `Costs ${fmtGdp(r.cost)} now and ${fmtGdp(r.up)} a month. Up to ${num(r.max)} available.${p.treasury < r.cost ? ' Not enough money.' : ''}`);
+  set('rInfo', r.max < 1000 ? (G.troopsOf(p) >= fl ? 'You are at your force limit. Raise conscription or discharge troops.' : 'Not enough manpower yet. It refills a little every day.') : `Costs ${fmtGdp(r.cost)} now and ${fmtGdp(r.up)} a month. Up to ${num(r.max)} available.${p.treasury < r.cost ? ' Not enough money.' : ''}`);
   $('rGo').disabled = !r.ok; $('rTroops').disabled = r.max < 1000;
   const html = `<div class="pth"><span>Province</span><span>Pop</span><span>GDP</span><span>Buildings</span></div>` + G.provsOf(p).sort((a, b) => b.gdp - a.gdp).map(q => {
     const bl = Object.keys(D.buildings).map(k => q.b[k] ? `<span class="bp" style="background:${D.buildings[k].c}" title="${D.buildings[k].n} ${q.b[k]}">${q.b[k]}</span>` : '').join('') + (q.build ? `<span class="sub"> +${D.buildings[q.build.k].n}</span>` : '');

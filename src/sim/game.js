@@ -5,7 +5,7 @@ import { genWorld } from './world.js';
 import { createNation } from './nation.js';
 import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor } from './military.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
-import { monthlyNation } from './economy.js';
+import { monthlyNation, weeklyNation, dailyNation } from './economy.js';
 import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
@@ -41,6 +41,8 @@ export function tick() {
   if (S.phase !== 'game' || S.over) return;
   S.day++;
   dailyMilitary(); dailyAttrition();
+  for (const n of S.nations) if (n.alive) dailyNation(n);
+  if (S.day % 7 === 0) for (const n of S.nations) if (n.alive) weeklyNation(n);
   if (S.day % MONTH === 0) monthlyTick();
   aiArmies();
 }

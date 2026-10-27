@@ -25,6 +25,26 @@ function breakaway(n) {
 }
 const auto = n => !n.you || S.st.autoPlayer;
 
+// Weekly: income, upkeep, reparations; desertion while in debt. Rates are monthly, paid in weekly slices.
+export function weeklyNation(n) {
+  const f = 7 / MONTH, m = monthlyIncome(n);
+  n.treasury += m.net * f; payReparations(n, m.inc * f);
+  if (n.treasury < 0) { armiesOf(n).forEach(a => a.troops *= 1 - .03 * f); if (n.you && R() < .3 * f * 4) log(`${N(n)} cannot pay its armies. Soldiers are deserting.`, 'bad', 3); }
+}
+// Daily: manpower regrows and idle armies in friendly land refill, at the same monthly rates spread over the days.
+export function dailyNation(n) {
+  const f = 1 / MONTH, fl = forceLimit(n);
+  n.manpower = Math.min(fl * .5, n.manpower + fl * .025 * f);
+  if (n.treasury <= 0 || n.manpower <= 0) return;
+  const rr = (.1 + .05 * Math.min(2, resCount(n, 'factory'))) * n.maint * f;
+  let room = Math.max(0, fl - troopsOf(n));
+  for (const a of S.armies) {
+    if (a.nat !== n.id || room <= 0 || n.manpower <= 0) continue;
+    const p = S.P[a.prov]; if (p.ctrl !== n.id || a.path.length) continue;
+    const add = Math.min(n.manpower, a.troops * rr, room);
+    if (add > 0) { reinforce(a, add); n.manpower -= add; room -= add; }
+  }
+}
 export function monthlyNation(n) {
   for (const p of provsOf(n)) {
     if (devastated(p)) continue;
@@ -41,17 +61,7 @@ export function monthlyNation(n) {
       if (n.you) { log(`${D.buildings[k].n} level ${p.b[k]} completed in ${PN(p)}.`, null, 3); emit('toast', { lab: 'Construction complete', title: `${D.buildings[k].n} · ${p.name}`, sub: D.buildings[k].d }); }
     }
   }
-  const m = monthlyIncome(n); n.treasury += m.net; payReparations(n, m.inc);
-  if (n.treasury < 0) { armiesOf(n).forEach(a => a.troops *= .97); if (n.you && R() < .3) log(`${N(n)} cannot pay its armies. Soldiers are deserting.`, 'bad', 3); }
-  const fl = forceLimit(n); n.manpower = Math.min(fl * .5, n.manpower + fl * .025);
-  // reinforce idle armies standing in friendly land
-  const rr = (.1 + .05 * Math.min(2, resCount(n, 'factory'))) * n.maint;
-  for (const a of armiesOf(n)) {
-    const p = S.P[a.prov]; if (p.ctrl !== n.id || a.path.length) continue;
-    const add = Math.min(n.manpower, a.troops * rr, Math.max(0, fl - troopsOf(n)));
-    if (add > 0 && n.treasury > 0) { reinforce(a, add); n.manpower -= add; }
-  }
-  if (auto(n)) aiEconomy(n, fl);
+  if (auto(n)) aiEconomy(n, forceLimit(n));
   // research
   n.rp += researchPerMonth(n);
   if (auto(n) && n.rp >= techCost(n)) { const av = techAvail(n); if (av.length) { const t = pick(av), c = techCost(n) + techExtra(n, t); if (n.rp >= c) { n.rp -= c; n.techs.push(t.k); log(`${N(n)} develops ${t.n.toLowerCase()}.`, null, t.k === 'nukes' ? 7 : 1); } } }
