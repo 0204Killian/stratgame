@@ -75,6 +75,11 @@ function onSimEvent(type, d) {
   else if (type === 'nuke') { map.flash(d.prov, 'nuke'); sfx.boom(); }
   else if (type === 'toast') toast(d.lab, d.title, d.sub);
   else if (type === 'decision') sfx.ding();
+  else if (type === 'peaceTable') {   // enemy crushed: stop the clock and open the treaty
+    ui.paused = true; renderSpeed(); delete ui.peaceSel[d.war]; setTab('wars'); sfx.ding();
+    const w = S.wars.find(x => x.id === d.war), e = w && S.nations[G.enemyIn(w, G.player().id)];
+    if (e) toast('Enemy crushed', e.name, `Their provinces cost ${Math.round(G.CRUSH_MULT * 100)}% of normal. Draw up the peace.`);
+  }
   else if (type === 'medal') {
     if (!profile.records.medals[d]) { profile.records.medals[d] = Date.now(); saveProfile(); const m = D.medals.find(x => x.k === d); if (m) toast('Medal unlocked', m.n, m.d); }
   } else if (type === 'end') {
@@ -94,7 +99,7 @@ function loop(t) {
     const running = !ui.paused && !modalOpen() && !S.decisions.length && !S.over;
     if (running) {
       acc += dt / SPEED_MS[ui.speed]; let n = Math.min(Math.floor(acc), 40); acc -= n; if (acc > 4) acc = 0;
-      while (n-- > 0 && !S.decisions.length && !S.over) { G.tick(); if (S.result && !ui.resultSeen) { ui.resultSeen = true; break; } }
+      while (n-- > 0 && !S.decisions.length && !S.over && !ui.paused) { G.tick(); if (S.result && !ui.resultSeen) { ui.resultSeen = true; break; } }
       const y = G.yearOf(S.day); if (y !== lastYear) { lastYear = y; autosave(); }
       if (S.over) { ui.paused = true; renderSpeed(); }
     } else acc = 0;
@@ -209,6 +214,7 @@ function onPanelClick(e) {
       const r = result(G.cmdPeace(+arg, { to: mode === 'demand' ? p.id : e, provs: sel.provs, gold: sel.gold, reps: sel.reps, allies: sel.allies }));
       if (r.ok) { sfx.found(); delete ui.peaceSel[+arg]; } break;
     }
+    case 'pall': { const w = S.wars.find(x => x.id === +arg); if (!w) break; ui.peaceSel[+arg] = { mode: 'demand', provs: G.occupiedBy(w, G.player().id).map(q => q.id), gold: 0, reps: false, allies: false }; refreshPanel(true); break; }
     case 'pmode': { const [w, m] = arg.split(':'); ui.peaceSel[+w] = { mode: m, provs: [], gold: 0, reps: false, allies: false }; refreshPanel(true); break; }
     case 'white': result(G.cmdPeace(+arg, [])); break;
     case 'research': { const r = result(G.cmdResearch(arg), ['Technology', D.techMap[arg].n, D.techMap[arg].d]); if (r.ok) sfx.ding(); break; }

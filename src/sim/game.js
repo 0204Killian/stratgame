@@ -11,7 +11,7 @@ import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
 export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE } from './military.js';
-export { provValue, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
+export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
 export const SAVE_VERSION = 1;
 export function init(data) { setData(data); }

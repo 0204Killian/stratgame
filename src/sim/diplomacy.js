@@ -34,7 +34,14 @@ export function surrenderStatus(w, winnerId) {
   return { landPct, lost, forced: landPct >= 1 && lost >= .7 };
 }
 export const occupiedBy = (w, winnerId) => { const loser = enemyIn(w, winnerId); return S.P.filter(p => p.owner === loser && p.ctrl === winnerId); };
-export const demandCost = ids => ids.reduce((s, i) => s + provValue(S.P[i]), 0);
+// A crushed nation (all land occupied, 70% of its army gone) has its provinces taken at a steep discount.
+export const CRUSH_MULT = .25;
+export const isCrushed = (w, loserId) => w && w.crushed === loserId;
+export function provCost(w, id) {
+  const p = S.P[id], v = provValue(p);
+  return isCrushed(w, p.owner) ? Math.max(1, Math.round(v * CRUSH_MULT)) : v;
+}
+export const demandCost = (ids, w) => ids.reduce((s, i) => s + provCost(w, i), 0);
 
 // ---------- Peace treaties ----------
 // A deal is always paid by the loser to the winner (deal.to):
@@ -45,14 +52,14 @@ export function normDeal(d, to) {
   return { to: d.to ?? to, provs: (d.provs || []).slice(), gold: clamp(d.gold | 0, 0, TERMS.goldMax), reps: !!d.reps, allies: !!d.allies };
 }
 export const goldAmount = (loser, steps) => steps * TERMS.goldMonths * Math.max(0, monthlyIncome(loser).inc);
-export function dealCost(deal) {
-  return demandCost(deal.provs) + deal.gold * TERMS.goldStep + (deal.reps ? TERMS.reps : 0) + (deal.allies ? TERMS.allies : 0);
+export function dealCost(deal, w) {
+  return demandCost(deal.provs, w) + deal.gold * TERMS.goldStep + (deal.reps ? TERMS.reps : 0) + (deal.allies ? TERMS.allies : 0);
 }
 export const isWhite = d => !d.provs.length && !d.gold && !d.reps && !d.allies;
 // What the AI needs to agree to a treaty proposed by the player.
 export function aiAccepts(w, playerId, deal) {
   deal = normDeal(deal, playerId);
-  const ai = enemyIn(w, playerId), aiSc = warScore(w, ai), cost = dealCost(deal);
+  const ai = enemyIn(w, playerId), aiSc = warScore(w, ai), cost = dealCost(deal, w);
   if (isWhite(deal)) return aiSc <= TERMS.whiteBand;
   if (deal.to === playerId) return cost <= Math.max(0, -aiSc) && cost <= 100;   // player demands
   return cost >= requiredOffer(w, ai);                                                // player concedes
@@ -65,7 +72,7 @@ export function requiredOffer(w, aiId) {
 export function bestDeal(w, winnerId, budget) {
   const loser = S.nations[enemyIn(w, winnerId)];
   const d = normDeal({ provs: bestDemand(w, winnerId, budget) }, winnerId);
-  let left = budget - demandCost(d.provs);
+  let left = budget - demandCost(d.provs, w);
   if (left >= TERMS.reps) { d.reps = true; left -= TERMS.reps; }
   while (left >= TERMS.goldStep && d.gold < TERMS.goldMax && goldAmount(loser, 1) > 0) { d.gold++; left -= TERMS.goldStep; }
   if (left >= TERMS.allies && loser.allies.length) { d.allies = true; left -= TERMS.allies; }
@@ -80,9 +87,10 @@ export function describeDeal(d, w, mark) {
   return parts.join('; ');
 }
 export function bestDemand(w, winnerId, budget) {
+  const cost = p => provCost(w, p.id);   // discounted when the loser is crushed
   const opts = occupiedBy(w, winnerId).sort((x, y) => provValue(y) - provValue(x));
   const out = []; let c = 0;
-  opts.forEach(p => { const v = provValue(p); if (c + v <= budget) { out.push(p.id); c += v; } });
+  opts.forEach(p => { const v = cost(p); if (c + v <= budget) { out.push(p.id); c += v; } });
   if (!out.length && opts.length && budget >= 100) out.push(...opts.map(p => p.id));
   return out;
 }
@@ -152,7 +160,15 @@ export function warMonthly(w) {
   if (!A.alive || !B.alive) { S.wars = S.wars.filter(x => x !== w); return; }
   const age = S.day - w.start, sa = warScore(w, w.a);
   const winner = sa >= 0 ? A : B, loser = sa >= 0 ? B : A, sc = Math.abs(sa);
-  if (surrenderStatus(w, winner.id).forced) { makePeace(w, winner.id, occupiedBy(w, winner.id).map(p => p.id), '', true); return; }
+  const crushed = surrenderStatus(w, winner.id).forced;
+  w.crushed = crushed ? loser.id : null;
+  if (crushed) {
+    if (winner.you && !S.st.autoPlayer) {
+      if (!w.crushTold) { w.crushTold = true; log(`${N(loser)} is crushed: its land is overrun and its army broken. Dictate the peace.`, 'big', 8); emit('peaceTable', { war: w.id }); }
+      return;   // the player draws up the treaty themselves
+    }
+    makePeace(w, winner.id, bestDeal(w, winner.id, 100), '', true); return;
+  }
   if (winner.you || loser.you) {
     if (S.day - w.lastOffer < 6 * MONTH || age < 6 * MONTH) return;
     if (S.decisions.some(d => d.kind === 'peace' && d.data.war === w.id)) return;

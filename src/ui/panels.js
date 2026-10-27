@@ -178,7 +178,7 @@ function tabWars(ui) {
     sel.provs = sel.provs.filter(id => pool.some(q => q.id === id));
     if (!payer.allies.length) sel.allies = false;
     const deal = { to: demand ? p.id : e.id, provs: sel.provs, gold: sel.gold, reps: sel.reps, allies: sel.allies };
-    const cost = G.dealCost(G.normDeal(deal)), empty = G.isWhite(G.normDeal(deal));
+    const cost = G.dealCost(G.normDeal(deal), w), empty = G.isWhite(G.normDeal(deal));
     const ok = !empty && G.aiAccepts(w, p.id, deal), okW = G.aiAccepts(w, p.id, []);
     const limit = demand ? `Your war score allows up to ${Math.max(0, sc)}%` : `They want at least ${G.requiredOffer(w, e.id)}%`;
     const them = G.surrenderStatus(w, p.id), us = G.surrenderStatus(w, e.id), pc = x => Math.round(Math.max(0, x) * 100);
@@ -189,9 +189,10 @@ function tabWars(ui) {
       <div class="score"><span class="mid"></span><span class="fill ${sc >= 0 ? 'pos' : 'neg'}" style="${sc >= 0 ? `left:50%;width:${sc / 2}%` : `right:50%;width:${-sc / 2}%`}"></span></div>
       <div class="hint">War score ${sc > 0 ? '+' : ''}${sc}% · you occupy ${occ.length} of their provinces · battles ${w.a === p.id ? w.bs.a : w.bs.b}% vs ${w.a === p.id ? w.bs.b : w.bs.a}%</div>
       <div class="hint">Forced surrender when both are met. ${coll(them, 'Them')}. ${coll(us, 'You')}.</div>
+      ${G.isCrushed(w, e.id) ? `<div class="hint"><b>${esc(e.name)} is crushed.</b> Dictate the peace: their provinces cost ${Math.round(G.CRUSH_MULT * 100)}% of normal.${occ.length ? ' ' + btn('pall', w.id, 'Select all provinces') : ''}</div>` : ''}${G.isCrushed(w, p.id) ? `<div class="hint neg"><b>You are crushed.</b> ${esc(e.name)} will dictate terms.</div>` : ''}
       <div class="btns">${btn('pmode', w.id + ':demand', 'Demand terms', { cls: demand ? 'primary' : '' })}${btn('pmode', w.id + ':offer', 'Offer terms', { cls: demand ? '' : 'primary' })}</div>
       <div class="demands">
-        ${pool.length ? pool.map(q => term('prov:' + q.id, `${demand ? 'Take' : 'Cede'} ${esc(q.name)} <span class="sub">${D.resources[q.res].n}</span>`, G.provValue(q), sel.provs.includes(q.id))).join('') : `<div class="hint">${demand ? 'You occupy none of their provinces.' : 'They occupy none of your provinces.'}</div>`}
+        ${pool.length ? pool.map(q => term('prov:' + q.id, `${demand ? 'Take' : 'Cede'} ${esc(q.name)} <span class="sub">${D.resources[q.res].n}</span>`, G.provCost(w, q.id), sel.provs.includes(q.id))).join('') : `<div class="hint">${demand ? 'You occupy none of their provinces.' : 'They occupy none of your provinces.'}</div>`}
         <label class="dm">${demand ? 'They pay' : 'You pay'} <select data-act="pterm" data-arg="${w.id}:gold">${goldOpts}</select></label>
         ${term('reps', `War reparations: ${Math.round(T.repsPct * 100)}% of ${demand ? 'their' : 'your'} income for ${T.repsYears} years`, T.reps, sel.reps)}
         ${term('allies', `${demand ? 'They break' : 'You break'} all alliances${payer.allies.length ? '' : ' (none)'}`, T.allies, sel.allies, !payer.allies.length)}
