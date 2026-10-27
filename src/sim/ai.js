@@ -1,7 +1,7 @@
 // AI army orders. Each army re-plans once a week, staggered across the days so big maps don't stutter.
 // Searches are limited to nearby provinces; armies with nothing in range head home.
 import { S, quality, garrison, warsOf, enemyIn } from './core.js';
-import { edges, canEnter, orderMove, siegeTarget, canColonise } from './military.js';
+import { edges, canEnter, orderMove, siegeTarget, canColonise, mor, MORALE } from './military.js';
 import { provValue } from './diplomacy.js';
 
 const MAX_DEPTH = 12;
@@ -29,11 +29,17 @@ export function aiArmies() {
     const key = n.id + ':' + a.prov;
     let dist = bfsCache.get(key); if (!dist) { dist = bfsDist(n, a.prov); bfsCache.set(key, dist); }
     let best = null, bv = -1e9;
+    // Low morale: fall back to the nearest province we control and recover before fighting again.
+    if (ws.length && mor(a) < MORALE.siegeMin) {
+      if (here.ctrl === n.id) continue;
+      let bd = 1e9; for (const [pid, d] of dist) if (S.P[pid].ctrl === n.id && d < bd && !S.armies.some(e => enemies.has(e.nat) && e.prov === pid)) { bd = d; best = pid; }
+      if (best != null) orderMove(a, best); continue;
+    }
     if (ws.length) {
-      const myStr = a.troops * quality(n);
+      const myStr = a.troops * quality(n) * (.25 + .75 * mor(a));
       // enemy strength per province, computed once per nation this day
       let es = strength.get(n.id);
-      if (!es) { es = new Map(); for (const e of S.armies) if (enemies.has(e.nat) && e.prog === 0) es.set(e.prov, (es.get(e.prov) || 0) + e.troops * quality(S.nations[e.nat])); strength.set(n.id, es); }
+      if (!es) { es = new Map(); for (const e of S.armies) if (enemies.has(e.nat) && e.prog === 0) es.set(e.prov, (es.get(e.prov) || 0) + e.troops * quality(S.nations[e.nat]) * (.25 + .75 * mor(e))); strength.set(n.id, es); }
       for (const [pid, d] of dist) {
         const p = S.P[pid], danger = es.get(pid) || 0;
         let v = -1e9;

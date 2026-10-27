@@ -42,7 +42,7 @@ function tabArmies(ui) {
     const a = list[0], others = mine ? S.armies.filter(o => o !== a && o.nat === a.nat && o.prov === a.prov && o.prog === 0 && !o.path.length) : [];
     const lim = mine ? G.recruitLimits() : null;
     return `<div class="eyebrow">${mine ? 'Your army' : 'Army of ' + esc(n.name)}</div><h2>${chip(n)}${num(a.troops)} troops</h2>
-      <dl>${row('Status', armyStatus(a))}${row('Fighting strength', `×${G.quality(n).toFixed(2)} per soldier`)}${mine ? row('Upkeep', fmtGdp(a.troops * lim.upkeepPer) + ' a month') : ''}</dl>
+      <dl>${row('Status', armyStatus(a))}${row('Morale', `${Math.round(G.mor(a) * 100)}%${G.mor(a) < G.MORALE.broken ? ' · broken, will be destroyed if caught' : G.mor(a) < G.MORALE.siegeMin ? ' · too low to siege' : ''}`, G.mor(a) < G.MORALE.siegeMin ? 'neg' : '')}${row('Fighting strength', `×${G.quality(n).toFixed(2)} per soldier`)}${mine ? row('Upkeep', fmtGdp(a.troops * lim.upkeepPer) + ' a month') : ''}</dl>
       ${mine ? `<p class="hint">Right-click a province to march there. Discharged soldiers return half to your manpower pool.</p>
       <div class="btns">${btn('stop', a.id, 'Stop', { dis: !a.path.length || a.retreat })}${btn('split', a.id, 'Split in half', { dis: a.troops < 2000 || a.path.length > 0 })}
       ${others.length ? btn('merge', [a.id, ...others.map(o => o.id)].join(','), `Merge ${others.length} here`) : ''}

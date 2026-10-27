@@ -2,8 +2,15 @@
 import { S, D, R, rnd, clamp, memo, YEAR, N, PN, log, emit, has, atWar, allied, warBetween, quality, garrison, isPort, unlockMedal } from './core.js';
 
 export function makeArmy(n, provId, troops) {
-  const a = { id: S.nextArmyId++, nat: n.id, troops: Math.max(0, troops), prov: provId, path: [], prog: 0, hop: 6, retreat: false };
+  const a = { id: S.nextArmyId++, nat: n.id, troops: Math.max(0, troops), prov: provId, path: [], prog: 0, hop: 6, retreat: false, mor: MORALE.recruit };
   S.armies.push(a); return a;
+}
+// ---------- Morale (EU4-style) ----------
+export const MORALE = { recruit: .5, siegeMin: .5, broken: .25, regenHome: .25, regenAway: .10, winLoss: [.15, .35], loseTo: [0, .1] };
+export const mor = a => a.mor ?? 1;
+// Add troops to an army: fresh recruits dilute its morale.
+export function reinforce(a, troops, m = MORALE.recruit) {
+  const t = a.troops + troops; if (t > 0) a.mor = (mor(a) * a.troops + m * troops) / t; a.troops = t;
 }
 export function canEnter(nid, p) {
   if (p.owner == null) return true;
@@ -11,11 +18,12 @@ export function canEnter(nid, p) {
   if (allied(nid, p.owner)) return true;
   return atWar(nid, p.owner) || atWar(nid, p.ctrl);
 }
-export const OVERRUN = 5;   // strength ratio at which the weaker side is wiped out in a day
 // Supply: armies standing in land controlled by an enemy wither; a nation with no land of its own withers fast.
 export function dailyAttrition() {
   const has1 = new Set(); for (const p of S.P) if (p.ctrl != null) has1.add(p.ctrl);
   for (const a of S.armies) {
+    const home = S.P[a.prov].ctrl === a.nat || (S.P[a.prov].ctrl != null && allied(a.nat, S.P[a.prov].ctrl));
+    if (!inBattle(a.prov) || a.prog > 0) a.mor = Math.min(1, mor(a) + (home ? MORALE.regenHome : MORALE.regenAway) / 30);
     if (a.prog > 0) continue;
     const p = S.P[a.prov];
     if (!has1.has(a.nat)) a.troops *= 1 - .10 / 30;
@@ -76,15 +84,13 @@ export function dailyMilitary() {
     const nats = [...new Set(list.filter(a => !a.retreat).map(a => a.nat))];
     for (let i = 0; i < nats.length; i++) for (let j = i + 1; j < nats.length; j++) if (atWar(nats[i], nats[j])) {
       const p = S.P[pid], def = (p.ctrl === nats[j] || p.owner === nats[j]) ? nats[j] : nats[i], att = def === nats[i] ? nats[j] : nats[i];
-      const str = id => list.filter(a => a.nat === id).reduce((s, a) => s + a.troops * quality(S.nations[id]), 0);
-      const r = str(att) / Math.max(1, str(def));
-      S.battles.push({ prov: pid, a: att, b: def, days: r >= OVERRUN || r <= 1 / OVERRUN ? 1 : 4 }); return;
+      S.battles.push({ prov: pid, a: att, b: def, days: 4 }); return;
     }
   });
   for (const b of S.battles.slice()) if (--b.days <= 0) { S.battles = S.battles.filter(x => x !== b); resolveBattle(b.prov, b.a, b.b); }
   byProv.forEach((list, pid) => {
     const p = S.P[pid]; if (inBattle(pid)) return;
-    const ok = list.filter(a => !a.path.length && !a.retreat && siegeTarget(a.nat, p) && S.armies.includes(a));
+    const ok = list.filter(a => !a.path.length && !a.retreat && mor(a) >= MORALE.siegeMin && siegeTarget(a.nat, p) && S.armies.includes(a));
     if (!ok.length) { if (p.siege && !list.some(a => a.nat === p.siege.nat)) p.siege = null; return; }
     const nat = ok[0].nat, tr = ok.filter(a => a.nat === nat).reduce((s, a) => s + a.troops, 0);
     if (tr < garrison(p)) { if (p.siege && p.siege.nat === nat) p.siege = null; return; }   // too small to besiege
@@ -129,18 +135,22 @@ function resolveBattle(pid, attId, defId) {
   if (!A.length || !Dd.length) return;
   const at = S.nations[attId], de = S.nations[defId];
   const ta = A.reduce((s, a) => s + a.troops, 0), td = Dd.reduce((s, a) => s + a.troops, 0);
-  const sa = ta * quality(at) * rnd(.8, 1.2);
-  const sd = td * quality(de) * rnd(.8, 1.2) * (p.res === 'mount' ? 1.25 : 1) * (has(de, 'radar') && p.owner === defId ? 1.2 : 1) * (p.owner === defId ? 1 + .08 * p.b.fort : 1);
+  const avgMor = L => L.reduce((s, a) => s + mor(a) * a.troops, 0) / Math.max(1, L.reduce((s, a) => s + a.troops, 0));
+  const ma = avgMor(A), md = avgMor(Dd), mf = m => .25 + .75 * m;   // a broken army fights at a quarter strength
+  const sa = ta * quality(at) * mf(ma) * rnd(.8, 1.2);
+  const sd = td * quality(de) * mf(md) * rnd(.8, 1.2) * (p.res === 'mount' ? 1.25 : 1) * (has(de, 'radar') && p.owner === defId ? 1.2 : 1) * (p.owner === defId ? 1 + .08 * p.b.fort : 1);
   const aWin = sa > sd, Wn = aWin ? at : de, Ln = aWin ? de : at, WA = aWin ? A : Dd, LA = aWin ? Dd : A, ratio = Math.min(sa, sd) / Math.max(sa, sd);
   const wl = rnd(.06, .14) * (.4 + ratio), ll = rnd(.3, .45);
   let wLoss = 0, lLoss = 0;
-  WA.forEach(a => { const l = a.troops * wl; a.troops -= l; wLoss += l; });
+  WA.forEach(a => { const l = a.troops * wl; a.troops -= l; wLoss += l; a.mor = Math.max(0, mor(a) - rnd(...MORALE.winLoss) * (.5 + ratio)); });
   LA.forEach(a => { const l = a.troops * ll; a.troops -= l; lLoss += l; });
+  const loserBroken = (aWin ? md : ma) < MORALE.broken;
+  LA.forEach(a => { a.mor = rnd(...MORALE.loseTo); });
   const w = warBetween(attId, defId);
   if (w) { const side = w.a === Wn.id ? 'a' : 'b'; w.bs[side] = Math.min(40, w.bs[side] + clamp(Math.round(lLoss / (lLoss + wLoss) * 12), 3, 12)); }
   emit('battle', { prov: pid, you: Wn.you || Ln.you });
   log(`Battle of ${PN(p)}: ${N(Wn)} defeats ${N(Ln)}. [[${Math.round(wLoss + lLoss)} dead]]`, null, (Wn.you || Ln.you) ? 5 : 3);
-  if (ratio <= 1 / OVERRUN) { LA.forEach(a => { lLoss += a.troops; a.troops = 0; }); log(`${N(Ln)}'s army at ${PN(p)} is overrun and destroyed.`, null, (Wn.you || Ln.you) ? 4 : 2); }
+  if (loserBroken) { LA.forEach(a => { a.troops = 0; }); log(`${N(Ln)}'s army at ${PN(p)} was already broken and is destroyed.`, null, (Wn.you || Ln.you) ? 4 : 2); }
   else LA.forEach(a => retreat(a));
   S.armies = S.armies.filter(a => a.troops >= 300);
 }

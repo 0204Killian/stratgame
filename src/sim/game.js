@@ -3,14 +3,14 @@ import { S, D, setState, setData, R, pick, rnd, newNationName, clamp, MONTH, YEA
   player, provsOf, popOf, gdpOf, armiesOf, troopsOf, forceLimit, techCost, techExtra, techAvail, warBetween, atWar, warsOf, allied, truceWith, hasNuke, buildCost, monthlyIncome } from './core.js';
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
-import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady } from './military.js';
+import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor } from './military.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation } from './economy.js';
 import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
-export { findPath, inBattle, nukeReady, siegeTarget, canColonise } from './military.js';
+export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE } from './military.js';
 export { provValue, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
 export const SAVE_VERSION = 1;
@@ -117,12 +117,12 @@ export function cmdMove(armyIds, provId) {
 export function cmdStop(id) { const a = army(id); if (!mine(a) || a.retreat) return fail('Cannot stop this army.'); a.path = []; a.prog = 0; return { ok: true }; }
 export function cmdSplit(id) {
   const a = army(id); if (!mine(a) || a.path.length || a.troops < 2000) return fail('Only an idle army of 2,000+ can split.');
-  const b = makeArmy(S.nations[a.nat], a.prov, a.troops / 2); a.troops /= 2; return { ok: true, army: b.id };
+  const b = makeArmy(S.nations[a.nat], a.prov, a.troops / 2); a.troops /= 2; b.mor = mor(a); return { ok: true, army: b.id };
 }
 export function cmdMerge(ids) {
   const list = ids.map(army).filter(a => mine(a) && !a.path.length && a.prog === 0);
   if (list.length < 2 || !list.every(a => a.prov === list[0].prov)) return fail('Armies must be idle in the same province to merge.');
-  const keep = list[0]; for (const o of list.slice(1)) keep.troops += o.troops;
+  const keep = list[0]; for (const o of list.slice(1)) reinforce(keep, o.troops, mor(o));
   S.armies = S.armies.filter(a => !list.slice(1).includes(a)); return { ok: true, army: keep.id };
 }
 export function cmdDischarge(id, frac) {

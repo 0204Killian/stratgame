@@ -2,7 +2,7 @@
 //   terrain  - sea, shallows, sea routes: drawn once per world
 //   base     - province colours (via a 1-pixel-per-cell image), occupation, borders, icons: rebuilt when the map changes
 //   overlay  - selection, sieges, battles, routes, armies, labels: drawn every frame
-import { S, D, devastated, inBattle } from '../sim/game.js';
+import { S, D, devastated, inBattle, mor, MORALE } from '../sim/game.js';
 import { kfmt } from './format.js';
 
 const SEA = '#15344a', INK = '#0b1620', FREE = [143, 136, 115], FREE2 = [133, 126, 106];
@@ -291,6 +291,8 @@ export class MapView {
       g.fillStyle = INK; g.fillRect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4);
       g.fillStyle = n.color; g.fillRect(x - w / 2, y - h / 2, w, h);
       g.fillStyle = INK; g.fillRect(x - w / 2, y - h / 2, compact ? 4 : 7, h);
+      { const m = grp.reduce((s, b) => s + mor(b) * b.troops, 0) / Math.max(1, troops), mh = h * m;   // morale bar
+        g.fillStyle = m < MORALE.broken ? '#e05a47' : m < MORALE.siegeMin ? '#e8b14a' : '#7fd17a'; g.fillRect(x - w / 2 + 1, y + h / 2 - mh, (compact ? 4 : 7) - 2, mh); }
       if (n.you) { g.strokeStyle = '#ffd27a'; g.lineWidth = sel ? 3 : 2; g.strokeRect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4); }
       g.fillStyle = INK; g.fillText(kfmt(troops), x + (compact ? 2 : 3), y + 1);
       if (grp.length > 1) {

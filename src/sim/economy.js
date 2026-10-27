@@ -1,6 +1,6 @@
 // Monthly economy, growth, construction, recruitment, research and internal politics.
 import { S, D, R, pick, rnd, newNationName, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, resCount, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar, buildCost } from './core.js';
-import { makeArmy, nuke, nukeReady, orderMove } from './military.js';
+import { makeArmy, nuke, nukeReady, orderMove, reinforce } from './military.js';
 import { declareWar, warScore, payReparations } from './diplomacy.js';
 import { createNation } from './nation.js';
 
@@ -49,7 +49,7 @@ export function monthlyNation(n) {
   for (const a of armiesOf(n)) {
     const p = S.P[a.prov]; if (p.ctrl !== n.id || a.path.length) continue;
     const add = Math.min(n.manpower, a.troops * rr, Math.max(0, fl - troopsOf(n)));
-    if (add > 0 && n.treasury > 0) { a.troops += add; n.manpower -= add; }
+    if (add > 0 && n.treasury > 0) { reinforce(a, add); n.manpower -= add; }
   }
   if (auto(n)) aiEconomy(n, fl);
   // research
@@ -78,7 +78,7 @@ function aiEconomy(n, fl) {
     if (n.treasury >= c || !armiesOf(n).length) {
       n.manpower -= tr; n.treasury -= c;
       const home = armiesOf(n).find(a => a.prov === spawn && !a.path.length && a.prog === 0);
-      if (home) home.troops += tr; else makeArmy(n, spawn, tr);
+      if (home) reinforce(home, tr); else makeArmy(n, spawn, tr);
     }
   }
   if (hasNuke(n) && nukeReady(n)) {
