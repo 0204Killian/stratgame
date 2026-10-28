@@ -1,7 +1,7 @@
 // Monthly economy, growth, construction, recruitment, research and internal politics.
 import { S, D, R, pick, rnd, newTribeName, MIN_ARMY, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar } from './core.js';
 import { makeArmy, nuke, nukeReady, orderMove, reinforce, mixOf, MORALE } from './military.js';
-import { weeklyProduction, weeklyConstruction, biome, aiPlanEconomy } from './industry.js';
+import { weeklyProduction, weeklyConstruction, biome, aiPlanEconomy, spend } from './industry.js';
 import { declareWar, warScore, payReparations } from './diplomacy.js';
 import { createNation } from './nation.js';
 
@@ -57,7 +57,7 @@ export function dailyNation(n) {
     const p = S.P[a.prov]; if (p.ctrl !== n.id || a.path.length) continue;
     const add = Math.min(n.manpower, a.troops * rr, room); if (add <= 0) continue;
     const { sw, sp } = armTroops(n, add, a.troops * mixOf(a), a.troops); if (sw + sp <= 0) continue;
-    n.stock.swords -= sw; n.stock.spears -= sp;
+    n.stock.swords -= sw; n.stock.spears -= sp; spend(n, 'army', { swords: sw, spears: sp });
     reinforce(a, sw + sp, MORALE.recruit, sw / (sw + sp)); n.manpower -= sw + sp; room -= sw + sp;
   }
 }
@@ -95,7 +95,7 @@ function aiEconomy(n, fl) {
   if (spawn != null && (t < fl * .5 || !armiesOf(n).length) && n.manpower > Math.max(MIN_ARMY(), fl * .08) && n.treasury > 0) {
     const { sw, sp } = armTroops(n, Math.min(n.manpower, fl * .3)), tr = sw + sp, c = tr * UPKEEP * 1.5;
     if (tr >= MIN_ARMY() && (n.treasury >= c || !armiesOf(n).length)) {
-      n.manpower -= tr; n.treasury -= c; n.stock.swords -= sw; n.stock.spears -= sp;
+      n.manpower -= tr; n.treasury -= c; n.stock.swords -= sw; n.stock.spears -= sp; spend(n, 'army', { swords: sw, spears: sp });
       const home = armiesOf(n).find(a => a.prov === spawn && !a.path.length && a.prog === 0);
       if (home) reinforce(home, tr, MORALE.recruit, sw / tr); else makeArmy(n, spawn, tr, sw / tr);
     }

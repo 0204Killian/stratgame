@@ -3,10 +3,13 @@ import { S, D, R, rnd, clamp, memo, YEAR, N, PN, log, emit, has, atWar, allied, 
 
 // An army is a number of troops and a mix: the share that are swordsmen (front row); the rest are spearmen (back row).
 export function makeArmy(n, provId, troops, mix = .5) {
-  const a = { id: S.nextArmyId++, nat: n.id, troops: Math.max(0, troops), mix, prov: provId, path: [], prog: 0, hop: 6, retreat: false, mor: MORALE.recruit };
+  n.bands = (n.bands || 0) + 1;
+  const a = { id: S.nextArmyId++, nat: n.id, name: `${ordinal(n.bands)} War Band`, troops: Math.max(0, troops), mix, prov: provId, path: [], prog: 0, hop: 6, retreat: false, mor: MORALE.recruit };
   S.armies.push(a); return a;
 }
 export const mixOf = a => a.mix ?? .5;
+export const ordinal = k => k + (k % 100 >= 11 && k % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][k % 10] || 'th');
+export const armyName = a => a.name || `Army ${a.id}`;
 const bio = p => D.biomes[p.biome] || D.biomes.plains;
 // ---------- Morale (EU4-style) ----------
 export const MORALE = { recruit: .5, siegeMin: .5, broken: .25, regenHome: .25, regenAway: .10, winLoss: [.15, .35], loseTo: [0, .1] };

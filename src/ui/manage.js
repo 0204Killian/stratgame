@@ -1,0 +1,149 @@
+// Full management screens that open over the map: Resources, Buildings and Army.
+// Same pattern as the side panel: plain HTML strings with data-act / data-arg, handled by one delegated listener.
+import * as G from '../sim/game.js';
+import { S, D } from '../sim/game.js';
+import { num, kfmt, esc, chip, fmtGdp } from './format.js';
+import { armyStatus } from './panels.js';
+
+export const SCREENS = [{ k: 'res', n: 'Resources', key: 'G' }, { k: 'bld', n: 'Buildings', key: 'B' }, { k: 'army', n: 'Army', key: 'M' }];
+const btn = (act, arg, label, o = {}) => `<button data-act="${act}" data-arg="${arg ?? ''}" class="${o.cls || ''}" ${o.dis ? 'disabled' : ''} ${o.title ? `title="${esc(o.title)}"` : ''}>${label}</button>`;
+const card = (lab, val, sub, cls) => `<div class="mcard"><span class="eyebrow">${lab}</span><b class="${cls || ''}">${val}</b>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+const pct = x => Math.round((x ?? 1) * 100) + '%';
+const q = x => (x > 0 && x < 10 ? (Math.round(x * 10) / 10).toString() : kfmt(x));   // small amounts keep a decimal
+const dot = c => `<span class="rdot" style="background:${c}"></span>`;
+const SHORT = { farm: 'Farm', forestry: 'Wood', quarry: 'Stone', toolsmith: 'Tools', bakery: 'Bakery', swordsmith: 'Sword', spearsmith: 'Spear', fort: 'Fort', harbour: 'Harbr' };
+const USE_NAME = { people: 'People', construction: 'Construction', army: 'Recruiting and reinforcing', spoilage: 'Spoilage' };
+
+// Small trend line for the last 26 weeks of a stock.
+function spark(arr, col) {
+  if (!arr || arr.length < 2) return '<span class="sub">—</span>';
+  const w = 96, h = 22, mx = Math.max(...arr), mn = Math.min(...arr), r = mx - mn || 1;
+  const pts = arr.map((v, i) => `${(i / (arr.length - 1) * w).toFixed(1)},${(h - 2 - (v - mn) / r * (h - 4)).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6"/></svg>`;
+}
+const myProvs = p => G.provsOf(p).filter(x => x.ctrl === p.id);
+
+export function renderManage(ui) {
+  const p = G.player(); if (!p) return '';
+  const m = ui.mg;
+  const tabs = SCREENS.map(s => `<button data-act="mgTab" data-arg="${s.k}" class="${m.tab === s.k ? 'on' : ''}">${s.n}<small>${s.key}</small></button>`).join('');
+  const body = m.tab === 'bld' ? buildings(p, ui) : m.tab === 'army' ? army(p, ui) : resources(p, ui);
+  return `<div class="mhead"><nav class="mtabs">${tabs}</nav><span class="sub">${esc(p.name)}</span><button data-act="mgClose" class="mclose" title="Close (Esc)">Close</button></div><div class="mscroll">${body}</div>`;
+}
+
+// ---------- Resources ----------
+function resources(p, ui) {
+  const f = p.flow || { prod: {}, use: {}, dem: {}, prodBy: {}, useBy: {} }, ps = myProvs(p);
+  const wf = ps.reduce((s, x) => s + G.workforce(x), 0), wk = ps.reduce((s, x) => s + (x.work || 0), 0), people = G.popOf(p) * 1e6;
+  let h = `<div class="mcards">${card('People', num(people), `${G.provsOf(p).length} tile${G.provsOf(p).length === 1 ? '' : 's'}`)}
+    ${card('Fed with bread', pct(p.fed), 'one bread per person a week', (p.fed ?? 1) < .95 ? 'neg' : 'pos')}
+    ${card('Homes with firewood', pct(p.warm), `${q(people * (D.balance.econ.woodPerPerson || 0))} wood a week`, (p.warm ?? 1) < .95 ? 'neg' : 'pos')}
+    ${card('Stone tools', pct(p.toolSat), 'farms, forestry and quarries need them', (p.toolSat ?? 1) < .95 ? 'neg' : '')}
+    ${card('Workers employed', `${num(wk)} / ${num(wf)}`, `${num(wf - wk)} free for building`)}</div>`;
+  const sel = ui.mg.good || 'bread';
+  h += `<div class="mgrid"><div><h3>Goods</h3><div class="gtable"><div class="gth"><span>Good</span><span>Stock</span><span>Made/wk</span><span>Used/wk</span><span>Net/wk</span><span>Lasts</span><span>Last 26 weeks</span></div>`;
+  for (const g of G.GOODS()) {
+    const st = p.stock[g], pr = f.prod[g] || 0, us = f.use[g] || 0, net = pr - us, short = (f.dem[g] || 0) > us * 1.01 && st < (f.dem[g] || 0) * .5;
+    const lasts = net < -1e-6 ? st / -net : null;
+    h += `<button class="gtr ${sel === g ? 'on' : ''}" data-act="mgGood" data-arg="${g}"><span>${dot(D.goods[g].c)}${D.goods[g].n}${short ? ' <span class="neg">short</span>' : ''}</span><span>${q(st)}</span><span class="pos">${pr ? '+' + q(pr) : '—'}</span><span>${us ? '−' + q(us) : '—'}</span>
+      <span class="${net < 0 ? 'neg' : net > 0 ? 'pos' : ''}">${net ? (net > 0 ? '+' : '−') + q(Math.abs(net)) : '—'}</span><span class="${lasts != null && lasts < 8 ? 'neg' : ''}">${lasts == null ? '—' : lasts > 520 ? '10y+' : Math.floor(lasts) + ' wk'}</span><span>${spark((p.hist || {})[g], D.goods[g].c)}</span></button>`;
+  }
+  h += `</div><p class="hint">Click a good to see what makes and uses it. "Short" means some demand went unmet last week.</p></div>`;
+  h += `<div class="gdetail">${goodDetail(p, sel, f)}</div></div>`;
+  return h;
+}
+function goodDetail(p, g, f) {
+  const G1 = D.goods[g], by = (f.prodBy || {})[g] || {}, uby = (f.useBy || {})[g] || {};
+  const list = (o, nm) => { const e = Object.entries(o).filter(([, v]) => v > 1e-6).sort((a, b) => b[1] - a[1]); const t = e.reduce((s, [, v]) => s + v, 0);
+    return e.length ? e.map(([k, v]) => `<div class="brk"><span>${nm(k)}</span><span>${q(v)}</span><span class="bar"><span style="width:${(v / t * 100).toFixed(0)}%;background:${G1.c}"></span></span></div>`).join('') : '<p class="hint">Nothing last week.</p>'; };
+  const bName = k => D.buildings[k] ? D.buildings[k].n : (USE_NAME[k] || k);
+  const uName = k => k === 'people' ? (g === 'wood' ? 'Households (firewood)' : 'People (eating)') : bName(k);
+  // provinces making it: buildings whose output is this good
+  const makers = Object.keys(D.buildings).filter(k => { const B = D.buildings[k]; return B.kind !== 'mil' && (B.methods ? B.methods.some(m => m.out[g]) : B.out && B.out[g]); });
+  const provs = myProvs(p).map(x => ({ x, v: makers.reduce((s, k) => s + ((x.out && x.out[k] && Object.keys(G.outputsOf(x, k))[0] === g) ? x.out[k] : 0), 0) })).filter(r => r.v > 0).sort((a, b) => b.v - a.v).slice(0, 8);
+  const tips = { wheat: 'Only bakeries use wheat: people eat bread.', bread: 'Each person eats one bread a week.', wood: 'Bakeries burn it, workshops shape it, and every home needs firewood.', tools: 'Farms, forestry and quarries work at half speed without them.', fiber: 'Nothing uses fiber yet. It is for later tiers.', swords: 'One sword per swordsman, for recruiting and refilling losses.', spears: 'One spear per spearman.', stone: 'Workshops, construction and forts use it.' };
+  return `<h3>${dot(G1.c)}${G1.n}</h3><p class="hint">${tips[g] || ''}</p>
+    <h4>Made by</h4>${list(by, bName)}<h4>Used by</h4>${list(uby, uName)}
+    <h4>Top provinces</h4>${provs.length ? provs.map(r => `<button class="brk link" data-act="mgProv" data-arg="${r.x.id}"><span>${esc(r.x.name)}</span><span>${q(r.v)}</span><span class="sub">${D.biomes[r.x.biome].n}</span></button>`).join('') : '<p class="hint">None of your provinces makes it.</p>'}
+    ${makers.length ? `<div class="btns">${makers.map(k => btn('mgBuildBest', `${k}:1`, `Build ${D.buildings[k].n.toLowerCase()} +1`, { title: 'In the province with the most free workers and the best land' })).join('')}</div>` : ''}`;
+}
+
+// ---------- Buildings ----------
+function buildings(p, ui) {
+  const ps = myProvs(p), keys = Object.keys(D.buildings);
+  let h = `<h3>By building</h3><div class="btable"><div class="bth"><span>Building</span><span>Levels</span><span>Staffed</span><span>Output/wk</span><span>Inputs</span><span>Work rate</span><span>Build where best</span></div>`;
+  for (const k of keys) {
+    const B = D.buildings[k], eco = B.kind !== 'mil';
+    const lv = ps.reduce((s, x) => s + x.b[k], 0), building = S.P.filter(x => x.build && x.build.nat === p.id && x.build.k === k).reduce((s, x) => s + x.build.lv, 0);
+    const want = ps.reduce((s, x) => s + x.b[k] * G.setting(x, k), 0), got = ps.reduce((s, x) => s + ((x.staff && x.staff[k]) || 0), 0);
+    const out = ps.reduce((s, x) => s + ((x.out && x.out[k]) || 0), 0), og = eco ? Object.keys(B.methods ? B.methods[0].out : B.out)[0] : null;
+    const rates = [...new Set(ps.filter(x => x.b[k]).map(x => G.setting(x, k)))], rate = rates.length === 1 ? rates[0] : null;
+    const lim = (p.procLimit || {})[k];
+    const inp = !eco || !lv ? '' : B.kind === 'raw' ? `tools ${pct(p.toolSat)}` : lim ? `${pct((p.procSat || {})[k])} · short of ${D.goods[lim].n.toLowerCase()}` : `${Object.keys(B.in).map(g => D.goods[g].n.toLowerCase()).join(', ')} 100%`;
+    const inSat = B.kind === 'raw' ? p.toolSat ?? 1 : (p.procSat || {})[k] ?? 1;
+    const best = G.bestProvinceFor(p, k), c1 = G.buildCost(k, 1), c5 = G.buildCost(k, 5);
+    const ok1 = best && G.canAfford(p, c1), ok5 = best && !B.max && G.canAfford(p, c5);
+    h += `<div class="btr"><span>${dot(B.c)}<b>${B.n}</b></span><span>${lv}${building ? ` <span class="sub">+${building}</span>` : ''}</span>
+      <span>${eco && lv ? pct(want ? Math.min(1, got / want) : 1) : '—'}</span><span>${eco && lv ? q(out) + ' ' + D.goods[k === 'farm' ? 'wheat' : og].n.toLowerCase() : '—'}</span>
+      <span class="${eco && lv && inSat < .95 ? 'neg' : ''}">${inp || '—'}</span>
+      <span>${eco && lv ? `<select data-act="mgRate" data-arg="${k}">${rate == null ? '<option selected>Mixed</option>' : ''}${[1, .75, .5, .25, 0].map(v => `<option value="${v}" ${rate === v ? 'selected' : ''}>${v ? v * 100 + '%' : 'Off'}</option>`).join('')}</select>` : ''}</span>
+      <span class="bbtn">${btn('mgBuildBest', `${k}:1`, '+1', { dis: !ok1, title: best ? `In ${best.name}` : 'No province free to build' })}${B.max ? '' : btn('mgBuildBest', `${k}:5`, '+5', { dis: !ok5, title: best ? `In ${best.name}` : 'No province free to build' })}<span class="sub">${best ? esc(best.name) : 'none free'}</span></span></div>`;
+  }
+  h += `</div><p class="hint">Farm output counts wheat and fiber together. "Build where best" picks the province with the most free workers, and the best land for farms, forestry and quarries.</p>`;
+  // construction queue
+  const cons = S.P.filter(x => x.build && x.build.nat === p.id);
+  h += `<h3>Under construction</h3>`;
+  h += cons.length ? `<div class="ctable">${cons.map(x => { const B = D.buildings[x.build.k], st = x.build.staffed || 0;
+    return `<div class="ctr"><button class="link" data-act="mgProv" data-arg="${x.id}">${esc(x.name)}</button><span>${B.n}${x.build.lv > 1 ? ' ×' + x.build.lv : ''}</span><span class="bar"><span style="width:${Math.round(x.build.prog * 100)}%"></span></span><span class="${st < .99 && x.build.prog > 0 ? 'neg' : ''}">${x.build.prog > 0 || st > 0 ? pct(st) + ' builders' : 'starting'}</span>${btn('mgCancel', x.id, 'Cancel', { cls: 'danger', title: 'Half the materials come back' })}</div>`; }).join('')}</div>`
+    : `<p class="hint">Nothing is being built.</p>`;
+  // province grid
+  const s = ui.mg.sort || { k: 'pop', d: -1 }, val = (x, k) => k === 'name' ? x.name : k === 'pop' ? x.pop : k === 'free' ? G.freeWorkers(x) : k === 'emp' ? x.emp || 0 : x.b[k];
+  const rows = ps.slice().sort((a, b) => { const A = val(a, s.k), B2 = val(b, s.k); return (typeof A === 'string' ? A.localeCompare(B2) : A - B2) * s.d; });
+  const hd = (k, lab, cls) => `<button data-act="mgSort" data-arg="${k}" class="${cls || ''} ${s.k === k ? 'on' : ''}">${lab}${s.k === k ? (s.d > 0 ? ' ▲' : ' ▼') : ''}</button>`;
+  h += `<h3>By province</h3><div class="ptgrid" style="--cols:${keys.length}"><div class="pgh">${hd('name', 'Province')}${hd('pop', 'People')}${hd('emp', 'Employed')}${hd('free', 'Free')}${keys.map(k => hd(k, SHORT[k] || D.buildings[k].n, 'bc')).join('')}</div>`;
+  for (const x of rows) {
+    h += `<div class="pgr"><button class="link" data-act="mgProv" data-arg="${x.id}">${dot(D.biomes[x.biome].c)}${esc(x.name)}${x.id === p.cap ? ' ★' : ''}</button><span>${num(x.pop * 1e6)}</span><span>${pct(x.emp || 0)}</span><span>${num(G.freeWorkers(x))}</span>`;
+    for (const k of keys) {
+      const lv = x.b[k], bl = x.build && x.build.k === k, okp = G.canPlace(x, k).ok || lv;
+      h += `<span class="bc ${lv ? '' : 'zero'} ${bl ? 'blding' : ''}" title="${esc(D.buildings[k].n)}">${!okp ? '·' : lv || (bl ? '' : '–')}${bl ? `<i>+${x.build.lv}</i>` : ''}</span>`;
+    }
+    h += `</div>`;
+  }
+  h += `</div><p class="hint">Click a column to sort, or a province to open it in the side panel. · means the building can't go there (terrain or coast).</p>`;
+  return h;
+}
+
+// ---------- Army ----------
+function army(p, ui) {
+  const lim = G.recruitLimits(), f = p.flow || { prod: {} }, ar = G.armiesOf(p), tr = G.troopsOf(p);
+  const up = tr * lim.upkeepPer, rec = ui.mg.rec || (ui.mg.rec = { sw: 0, sp: 0 });
+  const ps = myProvs(p); if (rec.prov == null || !ps.some(x => x.id === rec.prov)) rec.prov = ps.some(x => x.id === p.cap) ? p.cap : ps[0]?.id;
+  const room = Math.floor(Math.min(p.manpower, lim.room));
+  rec.sw = Math.max(0, Math.min(rec.sw, lim.swords, room)); rec.sp = Math.max(0, Math.min(rec.sp, lim.spears, room - rec.sw));
+  const tot = rec.sw + rec.sp, cost = tot * lim.costPer, ok = tot >= G.MIN_ARMY() && p.treasury >= cost && rec.prov != null;
+  let h = `<div class="mcards">${card('Soldiers', `${num(tr)} / ${num(lim.fl)}`, 'force limit from conscription', tr > lim.fl ? 'neg' : '')}
+    ${card('Manpower', num(p.manpower), `+${q(lim.fl * .025)} a month`)}
+    ${card('Swords', num(p.stock.swords), `+${q(f.prod.swords || 0)} a week`)}${card('Spears', num(p.stock.spears), `+${q(f.prod.spears || 0)} a week`)}
+    ${card('Upkeep', fmtGdp(up), 'a month')}</div>`;
+  h += `<div class="mgrid army"><div><h3>War bands</h3>`;
+  if (!ar.length) h += `<p class="hint">You have no war bands. Raise one on the right.</p>`;
+  else {
+    h += `<div class="atable"><div class="ath"><span>Band</span><span>Where</span><span>Troops</span><span>Swords · spears</span><span>Formation</span><span>Morale</span><span></span></div>`;
+    for (const a of ar.slice().sort((x, y) => y.troops - x.troops)) {
+      const mx = G.mixOf(a), eff = G.mixEff(mx), mo = G.mor(a), others = ar.filter(o => o !== a && o.prov === a.prov && !o.path.length && o.prog === 0 && !a.path.length && a.prog === 0);
+      h += `<div class="atr"><button class="link" data-act="mgArmy" data-arg="${a.id}"><b>${esc(G.armyName(a))}</b></button><span>${esc(S.P[a.prov].name)}<span class="sub">${armyStatus(a)}</span></span><span>${num(a.troops)}</span>
+        <span>${num(a.troops * mx)} · ${num(a.troops * (1 - mx))}</span><span class="${eff < .9 ? 'neg' : ''}">${pct(eff)}</span>
+        <span><span class="bar mor"><span style="width:${pct(mo)};${mo < G.MORALE.broken ? 'background:var(--danger)' : mo < G.MORALE.siegeMin ? 'background:var(--accent)' : ''}"></span></span><span class="sub">${pct(mo)}</span></span>
+        <span class="bbtn">${btn('mgArmy', a.id, 'Locate')}${others.length ? btn('merge', [a.id, ...others.map(o => o.id)].join(','), 'Merge') : ''}${btn('split', a.id, 'Split', { dis: a.troops < G.MIN_ARMY() * 2 || a.path.length > 0 })}</span></div>`;
+    }
+    h += `</div><p class="hint">Formation is how well the mix fills the front row (swordsmen) and back row (spearmen); 1:1 is ideal. Under 50% morale a band cannot siege; under 25% it is destroyed if caught.</p>`;
+  }
+  h += `</div><div class="recbox"><h3>Raise a war band</h3>
+    <label class="sl"><span class="sub">Muster at</span><select data-act="mgRecProv">${ps.map(x => `<option value="${x.id}" ${x.id === rec.prov ? 'selected' : ''}>${esc(x.name)}${x.id === p.cap ? ' (capital)' : ''}</option>`).join('')}</select></label>
+    <label class="sl"><span class="slh"><span>Swordsmen</span><b id="mSwV">${num(rec.sw)}</b></span><input type="range" data-act="mgRecSw" min="0" max="${Math.max(0, Math.min(lim.swords, room))}" step="1" value="${rec.sw}"><span class="hint">${num(lim.swords)} swords in store</span></label>
+    <label class="sl"><span class="slh"><span>Spearmen</span><b id="mSpV">${num(rec.sp)}</b></span><input type="range" data-act="mgRecSp" min="0" max="${Math.max(0, Math.min(lim.spears, room))}" step="1" value="${rec.sp}"><span class="hint">${num(lim.spears)} spears in store</span></label>
+    <div class="btns">${btn('mgRecEven', '', 'Even 1:1, as many as possible')}${btn('mgRecClear', '', 'Clear')}</div>
+    <p class="hint">${room < G.MIN_ARMY() ? (lim.room < G.MIN_ARMY() ? 'You are at your force limit. Raise conscription in the Tribe tab.' : 'Not enough manpower yet. It refills a little every day.') : `Room for ${num(room)} more. Formation ${pct(G.mixEff(tot ? rec.sw / tot : .5))}. Costs ${fmtGdp(cost)} now.`}</p>
+    ${btn('mgRecruit', '', `Raise ${num(tot)} warriors`, { cls: 'primary', dis: !ok })}</div></div>`;
+  return h;
+}

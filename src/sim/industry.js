@@ -48,9 +48,16 @@ export function provincesByOwner() {
   }
   return m;
 }
+// Record goods spent outside the weekly cycle (construction, recruiting, reinforcing) for the flow breakdown.
+export function spend(n, why, goods) {
+  const s = n.spent || (n.spent = {}), w = s[why] || (s[why] = {});
+  for (const g in goods) if (goods[g]) w[g] = (w[g] || 0) + goods[g];
+}
+const HIST = 26;   // weeks of stock history kept for the trend lines
 export function weeklyProduction(n, ps = S.P.filter(p => p.owner === n.id && p.ctrl === n.id)) {
   const st = n.stock || (n.stock = emptyStock());
-  const prod = emptyStock(), use = emptyStock(), dem = emptyStock();
+  const prod = emptyStock(), use = emptyStock(), dem = emptyStock(), prodBy = {}, useBy = {};
+  const add = (by, g, k, a) => { if (!a) return; const o = by[g] || (by[g] = {}); o[k] = (o[k] || 0) + a; };
   const econ = ECON();
   // 1. staffing: each province fills its buildings' jobs from its own workforce, scaled down evenly if short.
   for (const p of ps) {
@@ -66,38 +73,45 @@ export function weeklyProduction(n, ps = S.P.filter(p => p.owner === n.id && p.c
   dem.tools += toolNeed;
   const toolSat = toolNeed > 0 ? Math.min(1, st.tools / toolNeed) : 1;
   st.tools -= toolNeed * toolSat; use.tools += toolNeed * toolSat;
+  for (const k of E().rawOrder) { let t = 0; for (const p of ps) t += (p.staff[k] || 0) * D.buildings[k].tools; add(useBy, 'tools', k, t * toolSat); }
   const toolF = E().toolMinOutput + (1 - E().toolMinOutput) * toolSat;
   n.toolSat = toolSat;
   // 3. raw goods
   for (const p of ps) for (const k of E().rawOrder) {
     const eff = p.staff[k]; if (!eff) continue;
     const out = outputsOf(p, k), m = mult(n, p, k) * toolF;
-    for (const g in out) { const a = eff * out[g] * m; st[g] += a; prod[g] += a; p.out[k] = (p.out[k] || 0) + a; }
+    for (const g in out) { const a = eff * out[g] * m; st[g] += a; prod[g] += a; p.out[k] = (p.out[k] || 0) + a; add(prodBy, g, k, a); }
   }
   // 4. workshops, in priority order (bread first): inputs shared across the nation
   for (const k of E().procOrder) {
     const B = D.buildings[k]; let lv = 0;
     for (const p of ps) lv += p.staff[k] || 0;
     if (!lv) continue;
-    let sat = 1;
-    for (const g in B.in) { const need = lv * B.in[g]; dem[g] += need; sat = Math.min(sat, need > 0 ? st[g] / need : 1); }
+    let sat = 1, lim = null;
+    for (const g in B.in) { const need = lv * B.in[g]; dem[g] += need; const r = need > 0 ? st[g] / need : 1; if (r < sat) { sat = r; lim = g; } }
+    (n.procLimit || (n.procLimit = {}))[k] = sat < .999 ? lim : null;
     sat = Math.max(0, Math.min(1, sat));
-    for (const g in B.in) { const u = lv * B.in[g] * sat; st[g] -= u; use[g] += u; }
+    for (const g in B.in) { const u = lv * B.in[g] * sat; st[g] -= u; use[g] += u; add(useBy, g, k, u); }
     for (const p of ps) { const eff = p.staff[k]; if (!eff) continue;
-      for (const g in B.out) { const a = eff * B.out[g] * sat * mult(n, p, k); st[g] += a; prod[g] += a; p.out[k] = (p.out[k] || 0) + a; } }
+      for (const g in B.out) { const a = eff * B.out[g] * sat * mult(n, p, k); st[g] += a; prod[g] += a; p.out[k] = (p.out[k] || 0) + a; add(prodBy, g, k, a); } }
     (n.procSat || (n.procSat = {}))[k] = sat;
   }
   // 5. people eat bread and burn firewood, shared evenly across controlled provinces
   let people = 0; for (const p of ps) people += p.pop * 1e6;
   const need = people * E().breadPerPerson; dem.bread += need;
-  const eat = Math.min(st.bread, need); st.bread -= eat; use.bread += eat;
+  const eat = Math.min(st.bread, need); st.bread -= eat; use.bread += eat; add(useBy, 'bread', 'people', eat);
   n.fed = need > 0 ? eat / need : 1;
   const fuel = people * (E().woodPerPerson || 0); dem.wood += fuel;
-  const burn = Math.min(st.wood, fuel); st.wood -= burn; use.wood += burn;
+  const burn = Math.min(st.wood, fuel); st.wood -= burn; use.wood += burn; add(useBy, 'wood', 'people', burn);
   n.warm = fuel > 0 ? burn / fuel : 1;
-  for (const g in SPOIL) st[g] *= 1 - SPOIL[g];
+  for (const g in SPOIL) { const l = st[g] * SPOIL[g]; st[g] -= l; use[g] += l; add(useBy, g, 'spoilage', l); }
+  // goods spent since last week on building and on soldiers
+  for (const why in n.spent || {}) for (const g in n.spent[why]) { use[g] += n.spent[why][g]; add(useBy, g, why, n.spent[why][g]); }
+  n.spent = {};
   for (const g of GOODS()) if (st[g] < 1e-6) st[g] = 0;
-  n.flow = { prod, use, dem };
+  n.flow = { prod, use, dem, prodBy, useBy };
+  const h = n.hist || (n.hist = {});
+  for (const g of GOODS()) { const a = h[g] || (h[g] = []); a.push(Math.round(st[g] * 10) / 10); if (a.length > HIST) a.shift(); }
 }
 
 // ---------- construction ----------
@@ -112,8 +126,16 @@ export function orderBuild(n, p, k, lv = 1) {
   const cost = buildCost(k, lv);
   if (!canAfford(n, cost)) return { ok: false, why: 'Not enough materials.' };
   for (const g in cost) n.stock[g] -= cost[g];
+  spend(n, 'construction', cost);
   p.build = { k, lv, nat: n.id, prog: 0, staffed: 0 }; S.mapVersion++;
   return { ok: true };
+}
+// The best place for a new building: free workers to staff it, good land for raw industries.
+export function bestProvinceFor(n, k) {
+  const B = D.buildings[k];
+  const c = S.P.filter(p => p.owner === n.id && p.ctrl === n.id && !p.build && canPlace(p, k).ok);
+  const score = p => (freeWorkers(p) + 1) * (B.kind === 'raw' ? yieldOf(p, k) : 1) * (B.kind === 'mil' ? (p.id === n.cap ? 2 : 1) : 1);
+  return c.sort((a, b) => score(b) - score(a))[0] || null;
 }
 export const buildersNeeded = p => p.build ? p.build.lv * D.buildings[p.build.k].builders : 0;
 export const freeWorkers = p => Math.max(0, workforce(p) - (p.work || 0));

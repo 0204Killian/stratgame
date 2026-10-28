@@ -4,15 +4,15 @@ import { S, D, setState, setData, R, pick, rnd, newTribeName, MIN_ARMY, shuffle,
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
 import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor, mixOf, MORALE } from './military.js';
-import { orderBuild, ECON, provincesByOwner, weeklyProduction } from './industry.js';
+import { orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvinceFor } from './industry.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation, weeklyNation, dailyNation, ERA_TRAITS } from './economy.js';
 import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
-export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE } from './military.js';
-export { GOODS, ECON, workforce, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers } from './industry.js';
+export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays } from './military.js';
+export { GOODS, ECON, workforce, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
 export const SAVE_VERSION = 3;
@@ -162,7 +162,7 @@ export function cmdRecruit(provId, sw, sp) {
   const troops = sw + sp;
   if (troops < MIN_ARMY()) return fail('Not enough manpower, weapons or room under your force limit.');
   const cost = troops * lim.costPer; if (p.treasury < cost) return fail('Not enough money.');
-  p.manpower -= troops; p.treasury -= cost; p.stock.swords -= sw; p.stock.spears -= sp;
+  p.manpower -= troops; p.treasury -= cost; p.stock.swords -= sw; p.stock.spears -= sp; spend(p, 'army', { swords: sw, spears: sp });
   const a = makeArmy(p, provId, troops, sw / troops);
   log(`${N(p)} raises ${sw.toLocaleString('en-IE')} swordsmen and ${sp.toLocaleString('en-IE')} spearmen in ${PN(pr)}.`, null, 1);
   return { ok: true, army: a.id };
@@ -184,6 +184,23 @@ export function cmdCancelBuild(provId) {
 export function cmdSetProduction(provId, k, v) {
   const p = player(), pr = S.P[provId]; if (!pr || pr.owner !== p.id || !ECON().includes(k)) return fail('Not possible.');
   (pr.set || (pr.set = {}))[k] = clamp(v, 0, 1); return { ok: true };
+}
+// Set a building's work rate in every province at once.
+export function cmdSetProductionAll(k, v) {
+  const p = player(); if (!p || !ECON().includes(k)) return fail('Not possible.');
+  for (const pr of S.P) if (pr.owner === p.id && pr.b[k]) (pr.set || (pr.set = {}))[k] = clamp(v, 0, 1);
+  return { ok: true };
+}
+// Build in whichever province has the most free workers (and the best land for farms, forestry and quarries).
+export function cmdBuildBest(k, lv = 1) {
+  if (!canAct()) return fail('You cannot build now.');
+  const p = player(), pr = bestProvinceFor(p, k);
+  if (!pr) return fail('No province can take this right now: each province builds one thing at a time.');
+  const r = cmdBuild(pr.id, k, lv); return r.ok ? { ok: true, prov: pr.id } : r;
+}
+export function cmdRename(armyId, name) {
+  const a = army(armyId); if (!mine(a)) return fail('Not your army.');
+  a.name = String(name || '').trim().slice(0, 32) || a.name; return { ok: true };
 }
 export function cmdSetCrop(provId, crop) {
   const p = player(), pr = S.P[provId]; if (!pr || pr.owner !== p.id || !D.buildings.farm.methods.some(m => m.k === crop)) return fail('Not possible.');

@@ -37,6 +37,7 @@ src/ui/               Everything the player sees
   app.js              Entry point, game clock, input, dialogs, save/load
   map.js              Map renderer and camera
   panels.js           Side panel tabs
+  manage.js           Management screens over the map: Resources (G), Buildings (B), Army (M)
   setup.js            The nation wheel
 tools/test-sim.mjs    Headless tests: long AI-only games and save/load determinism
 tools/build-win.sh    Builds the Windows zip by dropping the game into the official Electron runtime

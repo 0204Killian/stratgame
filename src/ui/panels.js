@@ -5,7 +5,7 @@ import { S, D } from '../sim/game.js';
 import { num, kfmt, fmtPop, fmtGdp, fmtPct, dateStr, esc, chip, natName, fmtMsg } from './format.js';
 
 export const TABS = [
-  { k: 'sel', n: 'Selection', key: 'Q' }, { k: 'econ', n: 'Economy', key: 'E' }, { k: 'wars', n: 'Wars', key: 'W' },
+  { k: 'sel', n: 'Selection', key: 'Q' }, { k: 'econ', n: 'Tribe', key: 'E' }, { k: 'wars', n: 'Wars', key: 'W' },
   { k: 'tech', n: 'Research', key: 'R' }, { k: 'nations', n: 'Nations', key: 'N' }, { k: 'log', n: 'Log', key: 'L' }];
 
 const btn = (act, arg, label, opts = {}) => `<button data-act="${act}" data-arg="${arg ?? ''}" class="${opts.cls || ''}" ${opts.dis ? 'disabled' : ''} ${opts.title ? `title="${esc(opts.title)}"` : ''}>${label}</button>`;
@@ -73,7 +73,7 @@ function industryPanel(pr, p) {
     const eco = B.kind !== 'mil', set = G.setting(pr, k), out = (pr.out && pr.out[k]) || 0, staffed = lv && eco ? (pr.staff?.[k] || 0) / (lv * Math.max(set, 1e-9)) : 0;
     const outG = eco ? Object.keys(B.methods ? G.outputsOf(pr, k) : B.out)[0] : null;
     let info = eco ? (lv ? `${kfmt(out)} ${D.goods[outG].n.toLowerCase()}/wk · ${kfmt(lv * B.jobs * set)} jobs · ${Math.round(Math.min(1, staffed) * 100)}% staffed` : `${kfmt(B.jobs)} jobs a level`) : B.d;
-    if (eco && B.in && lv) { const sat = p.procSat?.[k]; if (sat != null && sat < .99) info += ` · <span class="neg">inputs ${Math.round(sat * 100)}%</span>`; }
+    if (eco && B.in && lv) { const sat = p.procSat?.[k], lim = p.procLimit?.[k]; if (sat != null && sat < .99) info += ` · <span class="neg">${Math.round(sat * 100)}%, short of ${lim ? D.goods[lim].n.toLowerCase() : 'inputs'}</span>`; }
     if (eco && B.kind === 'raw' && lv && (p.toolSat ?? 1) < .99) info += ` · <span class="neg">tools ${Math.round(p.toolSat * 100)}%</span>`;
     const c1 = G.buildCost(k, 1), c5 = G.buildCost(k, 5);
     const canB = pl.ok && !pr.build, ok1 = canB && G.canAfford(p, c1), ok5 = canB && !B.max && G.canAfford(p, c5);
@@ -120,7 +120,7 @@ function tabProvince(ui) {
   if (!owner) h += G.canColonise(p.id, pr)
     ? `<p class="hint">Free land. March an army of at least ${kfmt(G.garrison(pr))} here to annex it; about ${kfmt(G.garrison(pr) * 3)} sieges at full speed.</p>`
     : `<p class="hint">Free land, but out of reach. You can only annex land that borders your territory or has a sea route to one of your coastal provinces.</p>`;
-  if (owner && owner.you && pr.ctrl === p.id) h += industryPanel(pr, p) + `<div class="btns">${btn('recHere', pr.id, 'Recruit here')}</div>`;
+  if (owner && owner.you && pr.ctrl === p.id) h += industryPanel(pr, p) + `<div class="btns">${btn('recHere', pr.id, 'Raise a war band here')}${btn('mgOpen', 'bld', 'All buildings (B)')}</div>`;
   else h += industrySummary(pr);
   if (owner && !owner.you && owner.alive) {
     const w = G.warBetween(p.id, owner.id), tr = G.truceWith(p.id, owner.id), al = G.allied(p.id, owner.id);
@@ -142,7 +142,7 @@ function tabProvince(ui) {
 
 // ---------- Economy (built once, then updated in place so sliders keep working while dragging) ----------
 export function buildEcon() {
-  return `<h2>Tribe and war band</h2>
+  return `<h2>Tribe</h2>
   <div class="budget">
     <div class="brow"><span>Treasury</span><b id="eTreas"></b></div>
     <div class="brow"><span>Taxes</span><b id="eInc" class="pos"></b></div>
@@ -162,21 +162,12 @@ export function buildEcon() {
     <div class="brow"><span>Stone tools supplied</span><b id="eTools"></b></div>
     <div class="brow"><span>Workers employed</span><b id="eEmp"></b></div>
   </div>
-  <div id="stockTbl" class="stock"></div>
+  <div class="btns"><button data-act="mgOpen" data-arg="res">Resources (G)</button><button data-act="mgOpen" data-arg="bld">Buildings (B)</button><button data-act="mgOpen" data-arg="army">Army (M)</button></div>
   <h3>Policy</h3>
   <label class="sl"><span class="slh"><span>Tax rate</span><b id="vTax"></b></span><input type="range" id="sTax" min="5" max="30" step="1"><span class="hint" id="hTax"></span></label>
   <label class="sl"><span class="slh"><span>Conscription</span><b id="vCon"></b></span><input type="range" id="sCon" min="0.5" max="12" step="0.5"><span class="hint" id="hCon"></span></label>
   <label class="sl"><span class="slh"><span>Army maintenance</span><b id="vMnt"></b></span><input type="range" id="sMnt" min="50" max="100" step="5"><span class="hint" id="hMnt"></span></label>
-  <h3>Recruit an army</h3>
-  <div class="recruit">
-    <label class="sl"><span class="sub">Province</span><select id="rProv"></select></label>
-    <label class="sl"><span class="slh"><span>Soldiers</span><b id="vTroops"></b></span><input type="range" id="rTroops" min="0" max="1000" step="1" value="250"></label>
-    <label class="sl"><span class="slh"><span>Swordsmen share</span><b id="vMix"></b></span><input type="range" id="rMix" min="0" max="100" step="5" value="50"><span class="hint">Swordsmen hold the front row, spearmen the back. 50% is ideal.</span></label>
-    <span class="hint" id="rInfo"></span>
-    <button class="primary" data-act="recruit" id="rGo">Raise army</button>
-  </div>
-  <h3>Provinces</h3>
-  <div id="provList" class="ptable"></div>`;
+`;
 }
 export function recruitInfo(ui) {
   const p = G.player(), lim = G.recruitLimits();
@@ -206,27 +197,9 @@ export function updateEcon(ui) {
   set('vMnt', Math.round(p.maint * 100) + '%');
   set('hMnt', `Upkeep ${fmtGdp(m.up)} a month. Fighting strength ×${(.6 + .4 * p.maint).toFixed(2)}, reinforcement at ${Math.round(p.maint * 100)}% speed.`);
   for (const [id, v] of [['sTax', Math.round(p.tax * 100)], ['sCon', p.milPct], ['sMnt', Math.round(p.maint * 100)]]) if (document.activeElement !== $(id) && +$(id).value !== v) $(id).value = v;
-  const r = recruitInfo(ui), sig = r.ps.map(q => q.id).join(',');
-  if ($('rProv').dataset.sig !== sig) { $('rProv').innerHTML = r.ps.map(q => `<option value="${q.id}">${esc(q.name)}${q.id === p.cap ? ' (capital)' : ''}</option>`).join(''); $('rProv').dataset.sig = sig; }
-  if (r.prov != null && document.activeElement !== $('rProv') && +$('rProv').value !== r.prov) $('rProv').value = r.prov;
-  set('vTroops', r.max >= G.MIN_ARMY() ? num(r.tr) : '—'); set('vMix', Math.round(r.mix * 100) + '%');
-  const why = G.troopsOf(p) >= fl ? 'You are at your force limit. Raise conscription or discharge troops.' : p.manpower < G.MIN_ARMY() ? 'Not enough manpower yet. It refills a little every day.' : 'Not enough swords or spears. Build swordsmiths and spearsmiths.';
-  set('rInfo', r.max < G.MIN_ARMY() ? why : `${num(r.sw)} swordsmen and ${num(r.sp)} spearmen. In store: ${num(r.swords)} swords, ${num(r.spears)} spears. Costs ${fmtGdp(r.cost)} now and ${fmtGdp(r.up)} a month.${p.treasury < r.cost ? ' Not enough money.' : ''}`);
-  $('rGo').disabled = !r.ok; $('rTroops').disabled = r.max < G.MIN_ARMY();
   const ps = G.provsOf(p).filter(q => q.ctrl === p.id), wf = ps.reduce((s, q) => s + G.workforce(q), 0), wk = ps.reduce((s, q) => s + (q.work || 0), 0);
   set('eFed', Math.round((p.fed ?? 1) * 100) + '%', (p.fed ?? 1) < .95 ? 'neg' : 'pos'); set('eWarm', Math.round((p.warm ?? 1) * 100) + '%', (p.warm ?? 1) < .95 ? 'neg' : 'pos'); set('eTools', Math.round((p.toolSat ?? 1) * 100) + '%', (p.toolSat ?? 1) < .95 ? 'neg' : '');
   set('eEmp', `${kfmt(wk)} of ${kfmt(wf)} · ${Math.round(wk / Math.max(1, wf) * 100)}%`);
-  const f = p.flow || { prod: {}, use: {} };
-  const st = `<div class="sth"><span>Goods</span><span>Stock</span><span>Made/wk</span><span>Used/wk</span></div>` + G.GOODS().map(g => {
-    const net = (f.prod[g] || 0) - (f.use[g] || 0);
-    return `<div class="str"><span><span class="rdot" style="background:${D.goods[g].c}"></span>${D.goods[g].n}</span><span>${kfmt(p.stock[g])}</span><span class="pos">${f.prod[g] ? '+' + kfmt(f.prod[g]) : '—'}</span><span class="${net < 0 ? 'neg' : ''}">${f.use[g] ? '−' + kfmt(f.use[g]) : '—'}</span></div>`;
-  }).join('');
-  const se = $('stockTbl'); if (se.dataset.h !== st) { se.innerHTML = st; se.dataset.h = st; }
-  const html = `<div class="pth"><span>Province</span><span>Pop</span><span>Employed</span><span>Buildings</span></div>` + G.provsOf(p).sort((a, b) => b.pop - a.pop).map(q => {
-    const bl = Object.keys(D.buildings).map(k => q.b[k] ? `<span class="bp" style="background:${D.buildings[k].c}" title="${D.buildings[k].n} ${q.b[k]}">${q.b[k]}</span>` : '').join('') + (q.build ? `<span class="sub"> +${D.buildings[q.build.k].n}</span>` : '');
-    return `<button class="ptr" data-act="selProv" data-arg="${q.id}"><span><span class="rdot" style="background:${D.biomes[q.biome].c}"></span>${esc(q.name)}${q.ctrl !== p.id ? ' <span class="neg">occupied</span>' : ''}</span><span>${kfmt(q.pop * 1e6)}</span><span>${q.ctrl === p.id ? Math.round((q.emp || 0) * 100) + '%' : '—'}</span><span>${bl || '<span class="sub">—</span>'}</span></button>`;
-  }).join('');
-  const pl = $('provList'); if (pl.dataset.h !== html) { pl.innerHTML = html; pl.dataset.h = html; }
 }
 
 // ---------- Wars ----------

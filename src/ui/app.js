@@ -3,7 +3,8 @@ import * as G from '../sim/game.js';
 import { S, D, YEAR } from '../sim/game.js';
 import { MapView } from './map.js';
 import { Setup } from './setup.js';
-import { TABS, renderTab, buildEcon, updateEcon, recruitInfo } from './panels.js';
+import { TABS, renderTab, buildEcon, updateEcon } from './panels.js';
+import { renderManage, SCREENS } from './manage.js';
 import { showModal, closeModal, modalOpen, initModalLayer, toast } from './dialogs.js';
 import { platform } from './platform.js';
 import { sound, sfx, unlockAudio } from './audio.js';
@@ -13,7 +14,7 @@ const DATA_FILES = ['balance', 'governments', 'setup', 'traits', 'leaders', 'bio
 const SPEED_MS = [0, 500, 240, 110, 45, 12];
 const $ = id => document.getElementById(id);
 
-const ui = { mapMode: 'political', tab: 'sel', sel: null, confirm: null, peaceSel: {}, recProv: null, hoverProv: -1, paused: true, speed: 2, hold: false, forceBase: true, setup: null, lastHtml: '', econBuilt: false, keys: new Set() };
+const ui = { mg: { open: false, tab: 'res', good: 'bread', sort: null, rec: null, html: '' }, mapMode: 'political', tab: 'sel', sel: null, confirm: null, peaceSel: {}, recProv: null, hoverProv: -1, paused: true, speed: 2, hold: false, forceBase: true, setup: null, lastHtml: '', econBuilt: false, keys: new Set() };
 let map, setup, profile, acc = 0, lastT = 0, lastPanel = 0, lastYear = 0;
 
 const defaultProfile = () => ({ settings: { sound: true, volume: .7, autosave: 'yearly', uiScale: 1, confirmWar: true, edgePan: false }, records: { games: 0, wins: 0, best: 0, medals: {} } });
@@ -55,11 +56,11 @@ const app = {
 };
 function newGameScreen() {
   closeModal(); ui.paused = true; ui.sel = null; ui.peaceSel = {}; ui.confirm = null;
-  document.body.classList.add('setup-mode'); $('setup').hidden = false; $('ribbon').hidden = true;
+  document.body.classList.add('setup-mode'); $('setup').hidden = false; $('ribbon').hidden = true; closeManage();
   setup.begin(); requestAnimationFrame(() => { map.resize(); map.ensureWorld(); map.limits(); const cw = $('setup').offsetWidth + 32; map.fitRect(0, 0, Math.max(300, map.cw - cw), map.ch); }); renderTopbar(); renderSpeed();
 }
 function enterGame() {
-  document.body.classList.remove('setup-mode'); $('setup').hidden = true;
+  document.body.classList.remove('setup-mode'); $('setup').hidden = true; closeManage();
   ui.setup = null; ui.forceBase = true; ui.sel = null; ui.tab = 'sel'; ui.econBuilt = false; ui.paused = true; ui.peaceSel = {}; ui.recProv = null;
   lastYear = G.yearOf(S.day);
   map.ensureWorld(); map.limits();
@@ -104,7 +105,7 @@ function loop(t) {
       if (S.over) { ui.paused = true; renderSpeed(); }
     } else acc = 0;
     keyPan(dt);
-    if (t - lastPanel > 300) { lastPanel = t; renderTopbar(); if (!ui.hold) refreshPanel(); }
+    if (t - lastPanel > 300) { lastPanel = t; renderTopbar(); if (!ui.hold) { refreshPanel(); refreshManage(); } }
   } else keyPan(dt);
   map.draw(t, { selProv: ui.sel && ui.sel.kind === 'prov' ? ui.sel.id : null, selArmies: ui.sel && ui.sel.kind === 'armies' ? new Set(ui.sel.ids) : null, hoverProv: ui.hoverProv, setup: ui.setup, mapMode: ui.mapMode, get forceBase() { return ui.forceBase; }, set forceBase(v) { ui.forceBase = v; } });
   requestAnimationFrame(loop);
@@ -116,6 +117,18 @@ function keyPan(dt) {
   if (dx || dy) map.pan(dx, dy);
 }
 
+// ---------- management screens ----------
+function openManage(tab) { if (!S || S.phase !== 'game') return; ui.mg.open = true; if (tab) ui.mg.tab = tab; $('mgmt').hidden = false; renderMgBar(); refreshManage(true); }
+function closeManage() { ui.mg.open = false; $('mgmt').hidden = true; renderMgBar(); }
+function toggleManage(tab) { if (ui.mg.open && ui.mg.tab === tab) closeManage(); else openManage(tab); }
+function renderMgBar() { document.querySelectorAll('#mgbar [data-mg]').forEach(b => b.classList.toggle('on', ui.mg.open && b.dataset.mg === ui.mg.tab)); }
+function refreshManage(force) {
+  if (!ui.mg.open || !S || S.phase !== 'game') return;
+  const el = $('mgmt'); if (!force && el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
+  const html = renderManage(ui); if (!force && html === ui.mg.html) return;
+  const sc = el.querySelector('.mscroll'), top = sc ? sc.scrollTop : 0;
+  el.innerHTML = html; ui.mg.html = html; const sc2 = el.querySelector('.mscroll'); if (sc2) sc2.scrollTop = top;
+}
 function toggleTerrain() { ui.mapMode = ui.mapMode === 'terrain' ? 'political' : 'terrain'; $('zTerrain').classList.toggle('primary', ui.mapMode === 'terrain'); }
 
 // ---------- top bar ----------
@@ -153,6 +166,11 @@ function buildTabs() {
   $('tabbody').addEventListener('click', onPanelClick);
   $('tabbody').addEventListener('input', onPanelInput);
   $('tabbody').addEventListener('change', onPanelInput);
+  $('mgmt').addEventListener('click', onPanelClick);
+  $('mgmt').addEventListener('input', onPanelInput);
+  $('mgmt').addEventListener('change', onPanelInput);
+  $('mgmt').addEventListener('pointerdown', () => { ui.hold = true; });
+  $('mgbar').addEventListener('click', e => { const b = e.target.closest('[data-mg]'); if (b) toggleManage(b.dataset.mg); });
   document.querySelectorAll('.stat[data-tab]').forEach(el => el.onclick = () => setTab(el.dataset.tab));
 }
 function setTab(k) { ui.tab = k; ui.confirm = null; ui.econBuilt = false; renderTabs(); refreshPanel(true); }
@@ -208,8 +226,20 @@ function onPanelClick(e) {
     case 'build': { const [pid, k, lv] = arg.split(':'); result(G.cmdBuild(+pid, k, +lv || 1), ['Construction started', `${D.buildings[k].n}${+lv > 1 ? ' ×' + lv : ''} · ${S.P[+pid].name}`, `About ${D.buildings[k].weeks} weeks with enough builders`]); break; }
     case 'cancelBuild': result(G.cmdCancelBuild(+arg)); break;
     case 'crop': { const [pid, c] = arg.split(':'); result(G.cmdSetCrop(+pid, c)); break; }
-    case 'recHere': ui.recProv = +arg; setTab('econ'); setTimeout(() => $('rTroops')?.scrollIntoView({ block: 'center' }), 0); break;
-    case 'recruit': { const r = recruitInfo(ui); if (!r.ok) return; const res = result(G.cmdRecruit(r.prov, r.sw, r.sp), ['Army raised', `${num(r.sw)} swordsmen · ${num(r.sp)} spearmen`, `In ${S.P[r.prov].name}`]); if (res.ok) { select({ kind: 'armies', ids: [res.army] }, true); } break; }
+    case 'recHere': ui.mg.rec = { ...(ui.mg.rec || { sw: 0, sp: 0 }), prov: +arg }; openManage('army'); break;
+    // ---- management screens ----
+    case 'mgOpen': openManage(arg); break;
+    case 'mgTab': openManage(arg); break;
+    case 'mgClose': closeManage(); break;
+    case 'mgGood': ui.mg.good = arg; refreshManage(true); break;
+    case 'mgProv': select({ kind: 'prov', id: +arg }, true); refreshManage(true); break;
+    case 'mgArmy': closeManage(); select({ kind: 'armies', ids: [+arg] }, true); break;
+    case 'mgSort': { const s = ui.mg.sort || { k: 'pop', d: -1 }; ui.mg.sort = s.k === arg ? { k: arg, d: -s.d } : { k: arg, d: arg === 'name' ? 1 : -1 }; refreshManage(true); break; }
+    case 'mgBuildBest': { const [k, lv] = arg.split(':'); const r = result(G.cmdBuildBest(k, +lv)); if (r.ok) toast('Construction started', `${D.buildings[k].n}${+lv > 1 ? ' ×' + lv : ''}`, `In ${S.P[r.prov].name}`); refreshManage(true); break; }
+    case 'mgCancel': result(G.cmdCancelBuild(+arg)); refreshManage(true); break;
+    case 'mgRecEven': { const lim = G.recruitLimits(), room = Math.floor(Math.min(p.manpower, lim.room)), each = Math.floor(Math.min(lim.swords, lim.spears, room / 2)); ui.mg.rec = { ...ui.mg.rec, sw: each, sp: each }; refreshManage(true); break; }
+    case 'mgRecClear': ui.mg.rec = { ...ui.mg.rec, sw: 0, sp: 0 }; refreshManage(true); break;
+    case 'mgRecruit': { const r = ui.mg.rec; const res = result(G.cmdRecruit(r.prov, r.sw, r.sp), ['War band raised', `${num(r.sw)} swordsmen · ${num(r.sp)} spearmen`, `At ${S.P[r.prov].name}`]); if (res.ok) { ui.mg.rec = { ...r, sw: 0, sp: 0 }; } refreshManage(true); break; }
     case 'dow': if (!profile.settings.confirmWar || confirm2('dow:' + arg)) result(G.cmdDeclareWar(+arg)); break;
     case 'ally': { const r = G.cmdProposeAlliance(+arg); if (r.ok) toast(r.accepted ? 'Alliance signed' : 'Refused', S.nations[+arg].name, r.accepted ? 'They will defend you, and call you to their wars.' : 'They turned you down. Try again in a year.', r.accepted ? '' : 'bad'); else result(r); refreshPanel(true); break; }
     case 'unally': result(G.cmdBreakAlliance(+arg)); break;
@@ -232,7 +262,12 @@ function onPanelInput(e) {
   else if (t.id === 'sCon') G.cmdPolicy({ milPct: +t.value });
   else if (t.id === 'sMnt') G.cmdPolicy({ maint: +t.value / 100 });
   else if (t.id === 'rProv') ui.recProv = +t.value;
-  else if (t.id === 'rMix' || t.id === 'rTroops') { /* read live by recruitInfo */ }
+  else if (t.dataset.act === 'mgRate' && e.type === 'change') { if (t.value !== 'Mixed') result(G.cmdSetProductionAll(t.dataset.arg, +t.value)); refreshManage(true); return; }
+  else if (t.dataset.act === 'mgRecProv' && e.type === 'change') { ui.mg.rec.prov = +t.value; refreshManage(true); return; }
+  else if (t.dataset.act === 'mgRecSw' || t.dataset.act === 'mgRecSp') {
+    const k = t.dataset.act === 'mgRecSw' ? 'sw' : 'sp'; ui.mg.rec[k] = +t.value; const lab = $(k === 'sw' ? 'mSwV' : 'mSpV'); if (lab) lab.textContent = num(+t.value);
+    if (e.type === 'change') refreshManage(true); return;
+  }
   else if (t.dataset.act === 'pset' && e.type === 'change') { const [pid, k] = t.dataset.arg.split(':'); result(G.cmdSetProduction(+pid, k, +t.value)); return; }
   else if (t.dataset.act === 'pterm' && e.type === 'change') {
     const [w, k, v] = t.dataset.arg.split(':'), sel = ui.peaceSel[+w]; if (!sel) return;
@@ -325,7 +360,7 @@ function rightClick(sx, sy) {
 function togglePause() { if (!S || S.phase !== 'game' || S.over) return; unlockAudio(); ui.paused = !ui.paused; renderSpeed(); }
 function onKey(e) {
   if (e.target.closest && e.target.closest('input[type=text],select,textarea')) return;
-  if (e.code === 'Escape') { if (modalOpen()) closeModal(); else if (ui.sel) select(null); else if (S.phase === 'game') menuDialog(); return; }
+  if (e.code === 'Escape') { if (modalOpen()) closeModal(); else if (ui.mg.open) closeManage(); else if (ui.sel) select(null); else if (S.phase === 'game') menuDialog(); return; }
   if (e.code === 'F11') { e.preventDefault(); platform.toggleFullscreen(); return; }
   if (modalOpen()) return;
   if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { e.preventDefault(); saveDialog(); return; }
@@ -338,6 +373,7 @@ function onKey(e) {
   if (e.code === 'Equal' || e.code === 'NumpadAdd') { map.zoomAt(map.cw / 2, map.ch / 2, 1.25); return; }
   if (e.code === 'Minus' || e.code === 'NumpadSubtract') { map.zoomAt(map.cw / 2, map.ch / 2, .8); return; }
   if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) { toggleTerrain(); return; }
+  const mk = { KeyG: 'res', KeyB: 'bld', KeyM: 'army' }[e.code]; if (mk && S.phase === 'game' && !e.ctrlKey && !e.metaKey) { toggleManage(mk); return; }
   if (e.code === 'Home') { const p = G.player(); if (p && S.phase === 'game') { const c = S.P[p.cap]; map.centerOn(c.cx, c.cy); } else map.fit(); return; }
   if (/^(Arrow|Key[WASD])/.test(e.code)) ui.keys.add(e.code);
 }
