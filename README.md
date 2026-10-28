@@ -20,6 +20,15 @@ A real-time grand strategy game from the stone age up. You found a small farming
 - Buildings employ the province's own workers. Construction costs wood and stone and needs free workers as builders. You can turn each building's work rate down to free workers.
 - Armies are swordsmen (front row) and spearmen (back row); each soldier needs a sword or a spear. Battles run day by day; 1:1 fills both rows.
 
+## Population
+
+Population moves, in the spirit of Victoria 3. Every province has a living standard built from food, firewood and work.
+Growth follows it. Once a month, idle workers and their families leave provinces with no jobs for provinces with
+open jobs in the same tribe, nearer ones first. People also leave a hungry, cold or jobless tribe for a better-off
+neighbour that has work for them, as long as the two tribes are not at war. Builders are not tied to their
+province: a project takes idle workers locally first, then from the nearest provinces of the tribe. The Buildings
+page shows who moved and where the builders came from (`src/sim/population.js`).
+
 ## Project layout
 ```
 main.js, preload.js   Electron shell: window, app:// file protocol, save files on disk

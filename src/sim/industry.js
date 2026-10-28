@@ -158,14 +158,23 @@ export function bestProvinceFor(n, k) {
   return c.sort((a, b) => score(b) - score(a))[0] || null;
 }
 export const buildersNeeded = p => p.build ? p.build.lv * D.buildings[p.build.k].builders : 0;
-export const freeWorkers = p => Math.max(0, workforce(p) - (p.work || 0));
+// Idle workers: not in a job and not out building. Builders can come from anywhere in the tribe.
+export const freeWorkers = p => Math.max(0, workforce(p) - (p.work || 0) - (p.busy || 0));
 export function weeklyConstruction(n, ps = S.P) {
+  const mine = S.P.filter(p => p.owner === n.id && p.ctrl === n.id);
+  for (const p of mine) p.busy = 0;
+  const hop = Math.max(8, Math.sqrt(S.W * S.H / S.P.length)) * (S.CS || 8);
   for (const p of ps) {
     if (!p.build || p.build.nat !== n.id) continue;
     const B = D.buildings[p.build.k];
     if (p.owner !== n.id || p.ctrl !== n.id) { if (n.you) log(`Construction of ${B.n.toLowerCase()} in ${PN(p)} is abandoned.`, 'bad', 2); p.build = null; S.mapVersion++; continue; }
-    const staff = Math.min(1, freeWorkers(p) / Math.max(1, buildersNeeded(p)));
-    p.build.staffed = staff; p.build.prog += staff / B.weeks;
+    // builders: locals first, then the nearest provinces of the tribe, then anyone further away
+    const need = Math.max(1, buildersNeeded(p)); let got = Math.min(need, freeWorkers(p)); p.busy += got; const local = got;
+    if (got < need) for (const q of mine.filter(q => q !== p && freeWorkers(q) > 0).sort((a, b) => Math.hypot(a.cx - p.cx, a.cy - p.cy) - Math.hypot(b.cx - p.cx, b.cy - p.cy))) {
+      if (got >= need) break; const t = Math.min(need - got, freeWorkers(q)); q.busy += t; got += t;
+    }
+    const staff = Math.min(1, got / need);
+    p.build.staffed = staff; p.build.local = local; p.build.remote = got - local; p.build.prog += staff / B.weeks;
     if (p.build.prog >= 1) {
       const { k, lv } = p.build; p.b[k] += lv; p.build = null; S.mapVersion++;
       if (n.you) { log(`${B.n}${lv > 1 ? ` ×${lv}` : ''} completed in ${PN(p)}.`, null, 3); emit('toast', { lab: 'Construction complete', title: `${B.n}${lv > 1 ? ` ×${lv}` : ''} · ${p.name}`, sub: B.d }); }
@@ -221,7 +230,8 @@ export function aiPlanEconomy(n) {
   let orders = 0; const maxOrders = 3 + Math.floor(ps.length / 2);
   for (let [k, want] of need) {
     const Bk = B[k];
-    const cands = ps.filter(p => !p.build && canPlace(p, k).ok && freeWorkers(p) >= Bk.jobs * .6)
+    const tribeIdle = ps.reduce((s, p) => s + freeWorkers(p), 0);
+    const cands = ps.filter(p => !p.build && canPlace(p, k).ok && (freeWorkers(p) >= Bk.jobs * .6 || tribeIdle >= Bk.jobs * 2))
       .sort((a, b) => freeWorkers(b) * (Bk.kind === 'raw' ? yieldOf(b, k) : 1) - freeWorkers(a) * (Bk.kind === 'raw' ? yieldOf(a, k) : 1));
     for (const p of cands) {
       if (want <= 0 || orders >= maxOrders) break;

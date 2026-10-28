@@ -8,11 +8,13 @@ import { orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvin
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation, weeklyNation, dailyNation, ERA_TRAITS } from './economy.js';
 import { aiArmies } from './ai.js';
+import { migrateWithin, migrateBetween } from './population.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
 export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays, legDays, etaDays, routeDays } from './military.js';
 export { goodsOutlook, producerOf } from './industry.js';
+export { livingStandard, tribeStandard, vacancies, idleWorkers, jobsWanted } from './population.js';
 export { GOODS, ECON, workforce, rawWorkforce, draftShare, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
@@ -66,7 +68,7 @@ export function popBreakdown(n) {
   const ps = provsOf(n).filter(p => p.ctrl === n.id);
   const people = ps.reduce((s, p) => s + p.pop * 1e6, 0), raw = ps.reduce((s, p) => s + rawWorkforce(p), 0);
   const soldiers = troopsOf(n), canWork = ps.reduce((s, p) => s + workforce(p), 0), employed = ps.reduce((s, p) => s + Math.min(workforce(p), p.work || 0), 0);
-  const building = ps.reduce((s, p) => s + (p.build ? Math.min(freeWorkersOf(p), buildersNeededOf(p)) : 0), 0);
+  const building = ps.reduce((s, p) => s + (p.busy || 0), 0);
   return { people, raw, soldiers, canWork, employed, free: Math.max(0, canWork - employed), building, dependants: Math.max(0, people - raw), deaths: n.deaths || 0, occupiedPeople: provsOf(n).filter(p => p.ctrl !== n.id).reduce((s, p) => s + p.pop * 1e6, 0) };
 }
 // Soldiers who don't come home are gone from the population: compare each nation's troops with yesterday,
@@ -87,6 +89,8 @@ function countDead() {
 }
 function monthlyTick() {
   for (const n of S.nations) if (n.alive) monthlyNation(n);
+  for (const n of S.nations) if (n.alive) migrateWithin(n);
+  migrateBetween();
   for (const w of S.wars.slice()) warMonthly(w);
   aiDiplomacy();
   const p = player();

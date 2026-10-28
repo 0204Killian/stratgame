@@ -244,7 +244,7 @@ button.link:hover { color: var(--accent2); text-decoration: underline; }
 .ctr { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) 1.2fr 110px auto; gap: 12px; align-items: center; }
 .ctr button.danger { padding: 3px 10px; }
 .ptgrid { display: grid; gap: 1px; overflow-x: auto; }
-.pgh, .pgr { display: grid; grid-template-columns: minmax(150px, 1.6fr) 70px 70px 60px repeat(var(--cols), minmax(46px, 1fr)); gap: 4px; align-items: center; padding: 3px 10px; min-width: 760px; }
+.pgh, .pgr { display: grid; grid-template-columns: minmax(150px, 1.6fr) 70px 70px 60px 64px repeat(var(--cols), minmax(46px, 1fr)); gap: 4px; align-items: center; padding: 3px 10px; min-width: 820px; }
 .pgh button { background: none; border: 0; padding: 2px 0; font: 500 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); text-align: left; cursor: pointer; }
 .pgh button.on { color: var(--accent2); }
 .pgr { border-top: 1px solid var(--line); }

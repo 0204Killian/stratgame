@@ -2,6 +2,7 @@
 import { S, D, R, pick, rnd, newTribeName, MIN_ARMY, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar } from './core.js';
 import { makeArmy, nuke, nukeReady, orderMove, reinforce, mixOf, MORALE } from './military.js';
 import { weeklyProduction, weeklyConstruction, biome, aiPlanEconomy, spend } from './industry.js';
+import { livingStandard } from './population.js';
 import { declareWar, warScore, payReparations } from './diplomacy.js';
 import { createNation } from './nation.js';
 
@@ -66,8 +67,9 @@ export function monthlyNation(n) {
   for (const p of provsOf(n)) {
     if (devastated(p)) continue;
     // people need bread and firewood; subsistence covers part of a shortfall
+    // growth follows the standard of living: food, firewood and work
     const occ = p.ctrl !== n.id, got = occ ? 0 : Math.min(n.fed ?? 1, n.warm ?? 1), sat = got + (1 - got) * biome(p).sub;
-    const g = .006 * (sat - .7) - Math.max(0, n.milPct - 12) * .00008;
+    const g = .006 * (livingStandard(n, p) - .7) - Math.max(0, n.milPct - 12) * .00008;
     const before = p.pop; p.pop *= 1 + g;
     // settlers drift into near-empty land of a well-fed tribe
     if (!occ && sat > .95 && p.pop * 1e6 < 40) p.pop += rnd(1, 4) / 1e6;

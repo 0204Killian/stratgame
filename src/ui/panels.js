@@ -87,9 +87,9 @@ function industryPanel(pr, p) {
   if (pr.build) {
     const B = D.buildings[pr.build.k], need = G.buildersNeeded(pr), st = pr.build.staffed || 0;
     h += `<div class="cons"><div><b>Building ${B.n}${pr.build.lv > 1 ? ' ×' + pr.build.lv : ''}</b> · ${Math.round(pr.build.prog * 100)}%</div><div class="bar"><span style="width:${Math.round(pr.build.prog * 100)}%"></span></div>
-      <div class="sub">${kfmt(need)} builders needed · ${Math.round(st * 100)}% staffed${st < .99 ? ' · <span class="neg">not enough free workers here: lower a building\'s output to free some</span>' : ''}</div>
+      <div class="sub">${kfmt(need)} builders needed · ${Math.round(st * 100)}% staffed · ${kfmt(pr.build.local || 0)} from here, ${kfmt(pr.build.remote || 0)} from the rest of the tribe${st < .99 ? ' · <span class="neg">not enough idle workers in the whole tribe: lower a building\'s output to free some</span>' : ''}</div>
       <div class="btns">${btn('cancelBuild', pr.id, 'Cancel · half the materials back', { cls: 'danger' })}</div></div>`;
-  } else h += `<p class="hint">${kfmt(fw)} free workers here. Builders come from free workers; hover +1 for the cost. One project at a time per province.</p>`;
+  } else h += `<p class="hint">${kfmt(fw)} free workers here. Builders come from idle workers here first, then from nearby provinces; hover +1 for the cost. One project at a time per province.</p>`;
   return h;
 }
 // Live battle: both sides' rows, morale and losses.
@@ -111,6 +111,8 @@ function tabProvince(ui) {
     ${row('Terrain', terrainText(pr))}${pr.res === 'port' ? row('Harbour', 'Natural harbour: armies can cross sea routes') : ''}
     ${row('Population', `${fmtPop(pr.pop)} <span class="sub">· ${num(G.rawWorkforce(pr))} of working age</span>`)}
     ${owner && pr.ctrl === pr.owner ? row('Workers', `${num(Math.min(G.workforce(pr), pr.work || 0))} employed · <span class="${G.freeWorkers(pr) > 5 ? 'pos' : ''}">${num(G.freeWorkers(pr))} idle</span>${G.draftShare(owner) > .005 ? ` <span class="sub">· ${num(G.rawWorkforce(pr) - G.workforce(pr))} away in the army</span>` : ''}`) : ''}
+    ${owner && pr.ctrl === pr.owner ? row('Living', `${Math.round(G.livingStandard(owner, pr) * 100)}% <span class="sub">· food, firewood and work${G.vacancies(pr) >= 1 ? ` · ${num(G.vacancies(pr))} jobs open, drawing people in` : G.idleWorkers(pr) >= 5 ? ' · too few jobs, people move away' : ''}</span>`) : ''}
+    ${owner && pr.ctrl === pr.owner && ((pr.migIn || 0) >= 1 || (pr.migOut || 0) >= 1) ? row('Moving', `${pr.migIn >= 1 ? `<span class="pos">+${num(pr.migIn)} arrived</span> ` : ''}${pr.migOut >= 1 ? `<span class="neg">−${num(pr.migOut)} left</span>` : ''} <span class="sub">· last month</span>`) : ''}
     ${row('GDP', fmtGdp(pr.gdp))}${row('Garrison', `${num(G.garrison(pr))} <span class="sub">· smallest army that can siege it</span>`)}
     ${pr.siege ? row('Siege', chip(S.nations[pr.siege.nat]) + Math.round(pr.siege.prog * 100) + '%') : ''}
     ${G.devastated(pr) ? row('Status', 'Devastated until ' + dateStr(pr.devUntil), 'neg') : ''}
