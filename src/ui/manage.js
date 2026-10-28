@@ -2,7 +2,7 @@
 // Same pattern as the side panel: plain HTML strings with data-act / data-arg, handled by one delegated listener.
 import * as G from '../sim/game.js';
 import { S, D } from '../sim/game.js';
-import { num, kfmt, esc, chip, fmtGdp } from './format.js';
+import { num, kfmt, esc, chip, fmtGdp, fmtPrice } from './format.js';
 import { armyStatus, renderTab } from './panels.js';
 
 export const SCREENS = [{ k: 'econ', n: 'Tribe', key: 'E' }, { k: 'res', n: 'Resources', key: 'G' }, { k: 'bld', n: 'Buildings', key: 'B' }, { k: 'army', n: 'Army', key: 'M' },
@@ -79,7 +79,7 @@ function resources(p, ui) {
   h += `<h3>Goods</h3><div class="gtable"><div class="gth"><span>Good</span><span>Worth</span><span>Stock</span><span>Made/wk</span><span>Needed/wk</span><span>Outlook</span><span>Last 26 weeks</span></div>`;
   for (const g of G.GOODS()) {
     const o = go[g] || { stock: p.stock[g], prod: 0, need: 0, status: 'idle' }, [cls, lab] = STATUS[o.status] || STATUS.ok;
-    h += `<button class="gtr ${sel === g ? 'on' : ''}" data-act="mgGood" data-arg="${g}"><span>${dot(D.goods[g].c)}${D.goods[g].n}<i class="tierb">T${D.goods[g].tier}</i></span><span>$${num(D.goods[g].price)}</span><span>${q(o.stock)}</span><span class="pos">${o.prod ? q(o.prod) : '—'}</span><span>${o.need ? q(o.need) : '—'}</span>
+    h += `<button class="gtr ${sel === g ? 'on' : ''}" data-act="mgGood" data-arg="${g}"><span>${dot(D.goods[g].c)}${D.goods[g].n}<i class="tierb">T${D.goods[g].tier}</i></span><span>${fmtPrice(D.goods[g].price)}</span><span>${q(o.stock)}</span><span class="pos">${o.prod ? q(o.prod) : '—'}</span><span>${o.need ? q(o.need) : '—'}</span>
       <span class="olk ${cls}"><b>${lab}</b> ${outlookText(o, g)}</span><span>${spark((p.hist || {})[g], D.goods[g].c)}</span></button>`;
     if (sel === g) h += `<div class="gexp">${goodDetail(p, g, p.flow || {}, o)}</div>`;
   }
