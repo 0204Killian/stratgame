@@ -2,14 +2,22 @@
 // Goods sit in one national stockpile. Every province employs its own workforce in its own buildings;
 // raw industries (farm, forestry, quarry) need stone tools to work at full speed; workshops turn inputs
 // into outputs; people eat bread. Construction costs wood and stone and needs free workers as builders.
-import { S, D, R, N, PN, log, emit, has, devastated, forceLimit, warsOf } from './core.js';
+import { S, D, R, N, PN, log, emit, has, devastated, forceLimit, warsOf, memo } from './core.js';
 
 export const GOODS = () => Object.keys(D.goods);
 const SPOIL = { bread: .03, wheat: .01 };   // weekly share of food stocks that goes off
 export const ECON = () => Object.keys(D.buildings).filter(k => D.buildings[k].kind !== 'mil');
 const E = () => D.balance.econ;
 
-export const workforce = p => p.pop * 1e6 * E().workShare;
+// Working-age people in a province, before and after soldiers are taken out.
+export const rawWorkforce = p => p.pop * 1e6 * E().workShare;
+// Soldiers come out of the working population, spread evenly over the nation's provinces.
+export const draftShare = n => memo('draft' + n.id, () => {
+  let wf = 0; for (const p of S.P) if (p.owner === n.id && p.ctrl === n.id) wf += rawWorkforce(p);
+  let t = 0; for (const a of S.armies) if (a.nat === n.id) t += a.troops;
+  return wf > 0 ? Math.min(.95, t / wf) : 0;
+});
+export const workforce = p => p.owner == null ? rawWorkforce(p) : rawWorkforce(p) * (1 - draftShare(S.nations[p.owner]));
 export const setting = (p, k) => (p.set && p.set[k] != null ? p.set[k] : 1);
 export const biome = p => D.biomes[p.biome] || D.biomes.plains;
 export const yieldOf = (p, k) => { const y = biome(p).y[k]; return y == null ? 1 : y; };

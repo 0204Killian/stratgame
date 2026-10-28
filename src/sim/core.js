@@ -55,9 +55,19 @@ export function nameProvince(p, n) {
   const used = new Set(S.usedPlaces || (S.usedPlaces = [])), places = (D.cultures[n.culture] || {}).places || [];
   const free = places.filter(x => !used.has(x));
   let name = free.length ? pick(free) : null;
+  // real places first, then names built from the culture's own naming elements
+  const gen = (D.cultures[n.culture] || {}).gen;
+  for (let i = 0; !name && gen && i < 80; i++) { const x = genPlace(gen); if (!used.has(x)) name = x; }
   for (let r = 0; !name && r < ROMAN.length; r++) name = places.map(x => `${x} ${ROMAN[r]}`).find(x => !used.has(x));
   if (!name) name = `${n.name} ${p.id}`;
   p.name = name; p.named = true; S.usedPlaces.push(name);
+}
+export function genPlace(g) {
+  const a = pick(g.pre), b = pick(g.suf), sep = g.sep || '';
+  if (sep) return `${a}${sep}${b}`;
+  if (a.endsWith('-')) return a + b.charAt(0).toUpperCase() + b.slice(1);
+  if (a.slice(-1) === b.charAt(0)) return a + b.slice(1);   // Kil + lough → Killough, not Killlough
+  return a + b;
 }
 export const MIN_ARMY = () => D.balance.minArmy || 5;
 export function addDecision(d) { d.id = S.nextDecId++; S.decisions.push(d); emit('decision', d); return d; }

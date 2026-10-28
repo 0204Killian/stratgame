@@ -4,7 +4,7 @@ import { S, D, setState, setData, R, pick, rnd, newTribeName, MIN_ARMY, shuffle,
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
 import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor, mixOf, MORALE } from './military.js';
-import { orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvinceFor } from './industry.js';
+import { orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvinceFor, rawWorkforce, workforce, freeWorkers as freeWorkersOf, buildersNeeded as buildersNeededOf } from './industry.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation, weeklyNation, dailyNation, ERA_TRAITS } from './economy.js';
 import { aiArmies } from './ai.js';
@@ -12,7 +12,7 @@ import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
 export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays, legDays, etaDays, routeDays } from './military.js';
-export { GOODS, ECON, workforce, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor } from './industry.js';
+export { GOODS, ECON, workforce, rawWorkforce, draftShare, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
 export const SAVE_VERSION = 3;
@@ -54,9 +54,34 @@ export function tick() {
   S.day++;
   dailyMilitary(); dailyAttrition();
   for (const n of S.nations) if (n.alive) dailyNation(n);
+  countDead();
   if (S.day % 7 === 0) { const byOwner = provincesByOwner(); for (const n of S.nations) if (n.alive) weeklyNation(n, byOwner.get(n.id) || []); }
   if (S.day % MONTH === 0) monthlyTick();
   aiArmies();
+}
+// Who the people are: everyone, those able to work, soldiers taken from them, employed, free and dependants.
+export function popBreakdown(n) {
+  const ps = provsOf(n).filter(p => p.ctrl === n.id);
+  const people = ps.reduce((s, p) => s + p.pop * 1e6, 0), raw = ps.reduce((s, p) => s + rawWorkforce(p), 0);
+  const soldiers = troopsOf(n), canWork = ps.reduce((s, p) => s + workforce(p), 0), employed = ps.reduce((s, p) => s + Math.min(workforce(p), p.work || 0), 0);
+  const building = ps.reduce((s, p) => s + (p.build ? Math.min(freeWorkersOf(p), buildersNeededOf(p)) : 0), 0);
+  return { people, raw, soldiers, canWork, employed, free: Math.max(0, canWork - employed), building, dependants: Math.max(0, people - raw), deaths: n.deaths || 0, occupiedPeople: provsOf(n).filter(p => p.ctrl !== n.id).reduce((s, p) => s + p.pop * 1e6, 0) };
+}
+// Soldiers who don't come home are gone from the population: compare each nation's troops with yesterday,
+// allowing for recruits and discharges, and take the difference off the people (weekly, spread by population).
+function countDead() {
+  const now = new Map(); for (const a of S.armies) now.set(a.nat, (now.get(a.nat) || 0) + a.troops);
+  for (const n of S.nations) {
+    if (!n.alive) continue;
+    const t = now.get(n.id) || 0;
+    if (n.lastTroops != null) { const dead = n.lastTroops + (n.recruited || 0) - (n.discharged || 0) - t; if (dead > 1e-6) { n.deadAcc = (n.deadAcc || 0) + dead; n.deaths = (n.deaths || 0) + dead; } }
+    n.lastTroops = t; n.recruited = 0; n.discharged = 0;
+    if (S.day % 7 === 0 && n.deadAcc > 0) {
+      const ps = provsOf(n), pop = ps.reduce((s, p) => s + p.pop, 0);
+      if (pop > 0) for (const p of ps) p.pop = Math.max(0, p.pop - n.deadAcc / 1e6 * p.pop / pop);
+      n.deadAcc = 0; S.mapVersion++;
+    }
+  }
 }
 function monthlyTick() {
   for (const n of S.nations) if (n.alive) monthlyNation(n);
@@ -144,7 +169,8 @@ export function cmdDischarge(id, frac) {
   const n = S.nations[a.nat], l = a.troops * clamp(frac, 0, 1);
   n.manpower = Math.min(forceLimit(n) * .5, n.manpower + l * .5);
   n.stock.swords += l * mixOf(a); n.stock.spears += l * (1 - mixOf(a));   // weapons go back into store
-  a.troops -= l; if (a.troops < MIN_ARMY()) S.armies = S.armies.filter(x => x !== a);
+  a.troops -= l; n.discharged = (n.discharged || 0) + l;
+  if (a.troops < MIN_ARMY()) { n.discharged += a.troops; S.armies = S.armies.filter(x => x !== a); }
   return { ok: true };
 }
 export function recruitLimits() {
@@ -162,7 +188,7 @@ export function cmdRecruit(provId, sw, sp) {
   const troops = sw + sp;
   if (troops < MIN_ARMY()) return fail('Not enough manpower, weapons or room under your force limit.');
   const cost = troops * lim.costPer; if (p.treasury < cost) return fail('Not enough money.');
-  p.manpower -= troops; p.treasury -= cost; p.stock.swords -= sw; p.stock.spears -= sp; spend(p, 'army', { swords: sw, spears: sp });
+  p.manpower -= troops; p.treasury -= cost; p.stock.swords -= sw; p.stock.spears -= sp; spend(p, 'army', { swords: sw, spears: sp }); p.recruited = (p.recruited || 0) + troops;
   const a = makeArmy(p, provId, troops, sw / troops);
   log(`${N(p)} raises ${sw.toLocaleString('en-IE')} swordsmen and ${sp.toLocaleString('en-IE')} spearmen in ${PN(pr)}.`, null, 1);
   return { ok: true, army: a.id };

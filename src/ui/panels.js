@@ -109,8 +109,8 @@ function tabProvince(ui) {
     ${row('Owner', owner ? chip(owner) + natName(owner) + (owner.cap === pr.id ? ' · capital' : '') : 'Free province')}
     ${ctrl && ctrl !== owner ? row('Occupied by', chip(ctrl) + natName(ctrl)) : ''}
     ${row('Terrain', terrainText(pr))}${pr.res === 'port' ? row('Harbour', 'Natural harbour: armies can cross sea routes') : ''}
-    ${row('Population', `${fmtPop(pr.pop)} <span class="sub">· ${kfmt(G.workforce(pr))} can work</span>`)}
-    ${owner && pr.ctrl === pr.owner ? row('Employed', `${Math.round((pr.emp || 0) * 100)}% <span class="sub">· ${kfmt(G.freeWorkers(pr))} free</span>`) : ''}
+    ${row('Population', `${fmtPop(pr.pop)} <span class="sub">· ${num(G.rawWorkforce(pr))} of working age</span>`)}
+    ${owner && pr.ctrl === pr.owner ? row('Workers', `${num(Math.min(G.workforce(pr), pr.work || 0))} employed · <span class="${G.freeWorkers(pr) > 5 ? 'pos' : ''}">${num(G.freeWorkers(pr))} idle</span>${G.draftShare(owner) > .005 ? ` <span class="sub">· ${num(G.rawWorkforce(pr) - G.workforce(pr))} away in the army</span>` : ''}`) : ''}
     ${row('GDP', fmtGdp(pr.gdp))}${row('Garrison', `${num(G.garrison(pr))} <span class="sub">· smallest army that can siege it</span>`)}
     ${pr.siege ? row('Siege', chip(S.nations[pr.siege.nat]) + Math.round(pr.siege.prog * 100) + '%') : ''}
     ${G.devastated(pr) ? row('Status', 'Devastated until ' + dateStr(pr.devUntil), 'neg') : ''}

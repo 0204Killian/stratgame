@@ -10,6 +10,8 @@ A real-time grand strategy game from the stone age up. You found a small farming
 - Every tribe starts with a few hundred people on a tile where farming, forestry and stone are all possible. Free tiles hold 0 to 300 people.
 - Tiles have no name until settled; then they take a place name from the settling tribe's culture (60 cultures in `src/data/cultures.json`).
 - People eat bread and burn firewood. Wheat only feeds bakeries.
+- Soldiers come out of the workforce while they serve; soldiers killed in war are gone from the population.
+- Place names: real ones from the culture first, then names built from its naming elements (`gen` in cultures.json).
 - Every province has a biome (plains, forest, hills, mountains, desert). Stone can be quarried anywhere; farms and forestry are not possible in deserts or mountains.
 - Goods sit in one national stockpile. Farms grow wheat or fiber, forestry cuts wood, quarries cut stone. All three need stone tools from toolsmiths, or they work at half speed.
 - Bakeries turn wheat into bread, burning wood. People eat one bread a week; hungry provinces shrink, and subsistence farming covers only part of the gap.

@@ -58,7 +58,7 @@ export function dailyNation(n) {
     const add = Math.min(n.manpower, a.troops * rr, room); if (add <= 0) continue;
     const { sw, sp } = armTroops(n, add, a.troops * mixOf(a), a.troops); if (sw + sp <= 0) continue;
     n.stock.swords -= sw; n.stock.spears -= sp; spend(n, 'army', { swords: sw, spears: sp });
-    reinforce(a, sw + sp, MORALE.recruit, sw / (sw + sp)); n.manpower -= sw + sp; room -= sw + sp;
+    reinforce(a, sw + sp, MORALE.recruit, sw / (sw + sp)); n.manpower -= sw + sp; room -= sw + sp; n.recruited = (n.recruited || 0) + sw + sp;
   }
 }
 export function monthlyNation(n) {
@@ -95,7 +95,7 @@ function aiEconomy(n, fl) {
   if (spawn != null && (t < fl * .5 || !armiesOf(n).length) && n.manpower > Math.max(MIN_ARMY(), fl * .08) && n.treasury > 0) {
     const { sw, sp } = armTroops(n, Math.min(n.manpower, fl * .3)), tr = sw + sp, c = tr * UPKEEP * 1.5;
     if (tr >= MIN_ARMY() && (n.treasury >= c || !armiesOf(n).length)) {
-      n.manpower -= tr; n.treasury -= c; n.stock.swords -= sw; n.stock.spears -= sp; spend(n, 'army', { swords: sw, spears: sp });
+      n.manpower -= tr; n.treasury -= c; n.stock.swords -= sw; n.stock.spears -= sp; spend(n, 'army', { swords: sw, spears: sp }); n.recruited = (n.recruited || 0) + tr;
       const home = armiesOf(n).find(a => a.prov === spawn && !a.path.length && a.prog === 0);
       if (home) reinforce(home, tr, MORALE.recruit, sw / tr); else makeArmy(n, spawn, tr, sw / tr);
     }

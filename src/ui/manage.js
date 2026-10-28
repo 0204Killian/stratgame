@@ -23,6 +23,15 @@ function spark(arr, col) {
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6"/></svg>`;
 }
 const myProvs = p => G.provsOf(p).filter(x => x.ctrl === p.id);
+// Where the people are: one bar split into employed, idle, soldiers and dependants (children and elderly).
+function popStrip(p) {
+  const b = G.popBreakdown(p), tot = Math.max(1, b.people), w = v => (v / tot * 100).toFixed(1) + '%';
+  const seg = (v, c, lab) => v > 0 ? `<span style="width:${w(v)};background:${c}" title="${lab}: ${num(v)}"></span>` : '';
+  const key = (c, lab, v, sub) => `<span class="pk"><i style="background:${c}"></i><b>${num(v)}</b> ${lab}${sub ? ` <span class="sub">${sub}</span>` : ''}</span>`;
+  return `<div class="popstrip"><div class="pbar">${seg(b.employed, '#9ccc54', 'Employed')}${seg(b.free, '#f2b134', 'Idle workers')}${seg(b.soldiers, '#ef7457', 'In the army')}${seg(b.dependants, '#4b6478', 'Children and elderly')}</div>
+    <div class="pkeys">${key('#9ccc54', 'employed', b.employed)}${key('#f2b134', 'idle', b.free, b.building ? `(${num(b.building)} building)` : 'can staff new buildings')}${key('#ef7457', 'in the army', b.soldiers, `${Math.round(b.soldiers / Math.max(1, b.raw) * 100)}% of workers`)}${key('#4b6478', 'children and elderly', b.dependants)}
+    <span class="pk sub">${num(b.people)} people${b.occupiedPeople ? ` · ${num(b.occupiedPeople)} in occupied land` : ''}${b.deaths ? ` · ${num(b.deaths)} lost to war` : ''}</span></div></div>`;
+}
 
 export const manageHead = ui => { const s = SCREENS.find(x => x.k === ui.mg.tab) || SCREENS[0]; return `<div class="mhead"><nav class="mtabs"><button class="on">${s.n}<small>${s.key}</small></button></nav><button data-act="mgClose" class="mclose" title="Close (Esc)">Close</button></div>`; };
 export function renderManage(ui) {
@@ -36,11 +45,11 @@ export function renderManage(ui) {
 function resources(p, ui) {
   const f = p.flow || { prod: {}, use: {}, dem: {}, prodBy: {}, useBy: {} }, ps = myProvs(p);
   const wf = ps.reduce((s, x) => s + G.workforce(x), 0), wk = ps.reduce((s, x) => s + (x.work || 0), 0), people = G.popOf(p) * 1e6;
-  let h = `<div class="mcards">${card('People', num(people), `${G.provsOf(p).length} tile${G.provsOf(p).length === 1 ? '' : 's'}`)}
+  let h = popStrip(p) + `<div class="mcards">${card('People', num(people), `${G.provsOf(p).length} tile${G.provsOf(p).length === 1 ? '' : 's'}`)}
     ${card('Fed with bread', pct(p.fed), 'one bread per person a week', (p.fed ?? 1) < .95 ? 'neg' : 'pos')}
     ${card('Homes with firewood', pct(p.warm), `${q(people * (D.balance.econ.woodPerPerson || 0))} wood a week`, (p.warm ?? 1) < .95 ? 'neg' : 'pos')}
     ${card('Stone tools', pct(p.toolSat), 'farms, forestry and quarries need them', (p.toolSat ?? 1) < .95 ? 'neg' : '')}
-    ${card('Workers employed', `${num(wk)} / ${num(wf)}`, `${num(wf - wk)} free for building`)}</div>`;
+    ${card('Jobs filled', `${num(wk)} / ${num(wf)}`, `${num(Math.max(0, wf - wk))} idle workers`)}</div>`;
   const sel = ui.mg.good || 'bread';
   h += `<div class="mgrid"><div><h3>Goods</h3><div class="gtable"><div class="gth"><span>Good</span><span>Stock</span><span>Made/wk</span><span>Used/wk</span><span>Net/wk</span><span>Lasts</span><span>Last 26 weeks</span></div>`;
   for (const g of G.GOODS()) {
@@ -70,9 +79,10 @@ function goodDetail(p, g, f) {
 }
 
 // ---------- Buildings ----------
+const econKeys = x => Object.keys(D.buildings).reduce((s, k) => s + (D.buildings[k].jobs ? x.b[k] * D.buildings[k].jobs * G.setting(x, k) : 0), 0);
 function buildings(p, ui) {
   const ps = myProvs(p), keys = Object.keys(D.buildings);
-  let h = `<h3>By building</h3><div class="btable"><div class="bth"><span>Building</span><span>Levels</span><span>Staffed</span><span>Output/wk</span><span>Inputs</span><span>Work rate</span><span>Build where best</span></div>`;
+  let h = popStrip(p) + `<h3>By building</h3><div class="btable"><div class="bth"><span>Building</span><span>Levels</span><span>Workers</span><span>Output/wk</span><span>Inputs</span><span>Work rate</span><span>Build where best</span></div>`;
   for (const k of keys) {
     const B = D.buildings[k], eco = B.kind !== 'mil';
     const lv = ps.reduce((s, x) => s + x.b[k], 0), building = S.P.filter(x => x.build && x.build.nat === p.id && x.build.k === k).reduce((s, x) => s + x.build.lv, 0);
@@ -85,12 +95,14 @@ function buildings(p, ui) {
     const best = G.bestProvinceFor(p, k), c1 = G.buildCost(k, 1), c5 = G.buildCost(k, 5);
     const ok1 = best && G.canAfford(p, c1), ok5 = best && !B.max && G.canAfford(p, c5);
     h += `<div class="btr"><span>${dot(B.c)}<b>${B.n}</b></span><span>${lv}${building ? ` <span class="sub">+${building}</span>` : ''}</span>
-      <span>${eco && lv ? pct(want ? Math.min(1, got / want) : 1) : '—'}</span><span>${eco && lv ? q(out) + ' ' + D.goods[k === 'farm' ? 'wheat' : og].n.toLowerCase() : '—'}</span>
+      <span title="People working here / jobs open at the current work rate">${eco && lv ? `${num(got * B.jobs)} / ${num(want * B.jobs)}${got < want * .95 ? ` <span class="neg">${pct(got / want)}</span>` : ''}` : '—'}</span><span>${eco && lv ? q(out) + ' ' + D.goods[k === 'farm' ? 'wheat' : og].n.toLowerCase() : '—'}</span>
       <span class="${eco && lv && inSat < .95 ? 'neg' : ''}">${inp || '—'}</span>
       <span>${eco && lv ? `<select data-act="mgRate" data-arg="${k}">${rate == null ? '<option selected>Mixed</option>' : ''}${[1, .75, .5, .25, 0].map(v => `<option value="${v}" ${rate === v ? 'selected' : ''}>${v ? v * 100 + '%' : 'Off'}</option>`).join('')}</select>` : ''}</span>
       <span class="bbtn">${btn('mgBuildBest', `${k}:1`, '+1', { dis: !ok1, title: best ? `In ${best.name}` : 'No province free to build' })}${B.max ? '' : btn('mgBuildBest', `${k}:5`, '+5', { dis: !ok5, title: best ? `In ${best.name}` : 'No province free to build' })}<span class="sub">${best ? esc(best.name) : 'none free'}</span></span></div>`;
   }
-  h += `</div><p class="hint">Farm output counts wheat and fiber together. "Build where best" picks the province with the most free workers, and the best land for farms, forestry and quarries.</p>`;
+  const jobsF = ps.reduce((s, x) => s + Math.min(G.workforce(x), x.work || 0), 0), jobsT = ps.reduce((s, x) => s + econKeys(x), 0);
+  h += `<div class="btr total"><span><b>All buildings</b></span><span>${ps.reduce((s, x) => s + keys.reduce((t, k) => t + x.b[k], 0), 0)}</span><span>${num(jobsF)} / ${num(jobsT)}</span><span></span><span></span><span></span><span></span></div>`;
+  h += `</div><p class="hint">Workers: people working there and jobs open at the current work rate. Farm output counts wheat and fiber together. "Build where best" picks the province with the most free workers, and the best land for farms, forestry and quarries.</p>`;
   // construction queue
   const cons = S.P.filter(x => x.build && x.build.nat === p.id);
   h += `<h3>Under construction</h3>`;
@@ -101,9 +113,9 @@ function buildings(p, ui) {
   const s = ui.mg.sort || { k: 'pop', d: -1 }, val = (x, k) => k === 'name' ? x.name : k === 'pop' ? x.pop : k === 'free' ? G.freeWorkers(x) : k === 'emp' ? x.emp || 0 : x.b[k];
   const rows = ps.slice().sort((a, b) => { const A = val(a, s.k), B2 = val(b, s.k); return (typeof A === 'string' ? A.localeCompare(B2) : A - B2) * s.d; });
   const hd = (k, lab, cls) => `<button data-act="mgSort" data-arg="${k}" class="${cls || ''} ${s.k === k ? 'on' : ''}">${lab}${s.k === k ? (s.d > 0 ? ' ▲' : ' ▼') : ''}</button>`;
-  h += `<h3>By province</h3><div class="ptgrid" style="--cols:${keys.length}"><div class="pgh">${hd('name', 'Province')}${hd('pop', 'People')}${hd('emp', 'Employed')}${hd('free', 'Free')}${keys.map(k => hd(k, SHORT[k] || D.buildings[k].n, 'bc')).join('')}</div>`;
+  h += `<h3>By province</h3><div class="ptgrid" style="--cols:${keys.length}"><div class="pgh">${hd('name', 'Province')}${hd('pop', 'People')}${hd('emp', 'Working')}${hd('free', 'Idle')}${keys.map(k => hd(k, SHORT[k] || D.buildings[k].n, 'bc')).join('')}</div>`;
   for (const x of rows) {
-    h += `<div class="pgr"><button class="link" data-act="mgProv" data-arg="${x.id}">${dot(D.biomes[x.biome].c)}${esc(x.name)}${x.id === p.cap ? ' ★' : ''}</button><span>${num(x.pop * 1e6)}</span><span>${pct(x.emp || 0)}</span><span>${num(G.freeWorkers(x))}</span>`;
+    h += `<div class="pgr"><button class="link" data-act="mgProv" data-arg="${x.id}">${dot(D.biomes[x.biome].c)}${esc(x.name)}${x.id === p.cap ? ' ★' : ''}</button><span>${num(x.pop * 1e6)}</span><span title="${pct(x.emp || 0)} of ${num(G.workforce(x))} workers">${num(Math.min(G.workforce(x), x.work || 0))}</span><span class="${G.freeWorkers(x) > 5 ? 'pos' : ''}">${num(G.freeWorkers(x))}</span>`;
     for (const k of keys) {
       const lv = x.b[k], bl = x.build && x.build.k === k, okp = G.canPlace(x, k).ok || lv;
       h += `<span class="bc ${lv ? '' : 'zero'} ${bl ? 'blding' : ''}" title="${esc(D.buildings[k].n)}">${!okp ? '·' : lv || (bl ? '' : '–')}${bl ? `<i>+${x.build.lv}</i>` : ''}</span>`;
@@ -122,7 +134,7 @@ function army(p, ui) {
   const room = Math.floor(Math.min(p.manpower, lim.room));
   rec.sw = Math.max(0, Math.min(rec.sw, lim.swords, room)); rec.sp = Math.max(0, Math.min(rec.sp, lim.spears, room - rec.sw));
   const tot = rec.sw + rec.sp, cost = tot * lim.costPer, ok = tot >= G.MIN_ARMY() && p.treasury >= cost && rec.prov != null;
-  let h = `<div class="mcards">${card('Soldiers', `${num(tr)} / ${num(lim.fl)}`, 'force limit from conscription', tr > lim.fl ? 'neg' : '')}
+  let h = popStrip(p) + `<div class="mcards">${card('Soldiers', `${num(tr)} / ${num(lim.fl)}`, 'force limit from conscription', tr > lim.fl ? 'neg' : '')}
     ${card('Manpower', num(p.manpower), `+${q(lim.fl * .025)} a month`)}
     ${card('Swords', num(p.stock.swords), `+${q(f.prod.swords || 0)} a week`)}${card('Spears', num(p.stock.spears), `+${q(f.prod.spears || 0)} a week`)}
     ${card('Upkeep', fmtGdp(up), 'a month')}</div>`;

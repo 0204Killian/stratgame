@@ -17,7 +17,8 @@
       <button data-sp="1" title="Speed 1">1</button><button data-sp="2" title="Speed 2">2</button><button data-sp="3" title="Speed 3">3</button><button data-sp="4" title="Speed 4">4</button><button data-sp="5" title="Speed 5">5</button>
     </div>
     <div class="tbstats" id="tbStats">
-      <div class="stat" data-tab="econ"><span class="eyebrow">People</span><b id="tPop">—</b></div>
+      <div class="stat" data-tab="res"><span class="eyebrow">People</span><b id="tPop">—</b></div>
+      <div class="stat" data-tab="bld" title="Workers with no job: they can staff new buildings or build"><span class="eyebrow">Idle</span><b id="tFree">—</b></div>
       <div class="stat" data-tab="econ"><span class="eyebrow">Treasury</span><b id="tTreasury">—</b></div>
       <div class="stat" data-tab="econ"><span class="eyebrow">Monthly</span><b id="tIncome">—</b></div>
       <div class="stat" data-tab="econ"><span class="eyebrow">Army</span><b id="tArmy">—</b></div>
@@ -36,6 +37,7 @@
     <section id="mapwrap">
       <canvas id="map" aria-label="World map"></canvas>
       <div id="mgbar"></div>
+      <div id="alerts"></div>
       <div id="ribbon" hidden></div>
       <div id="mgmt" hidden></div>
       <div id="selwin" hidden></div>

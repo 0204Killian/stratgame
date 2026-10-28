@@ -165,7 +165,7 @@ export function dailyMilitary() {
     if (!ok.length) { if (p.siege && !list.some(a => a.nat === p.siege.nat)) p.siege = null; return; }
     const nat = ok[0].nat, tr = ok.filter(a => a.nat === nat).reduce((s, a) => s + a.troops, 0);
     if (tr < garrison(p)) { if (p.siege && p.siege.nat === nat) p.siege = null; return; }   // too small to besiege
-    if (!p.siege || p.siege.nat !== nat) p.siege = { nat, prog: 0 };
+    if (!p.siege || p.siege.nat !== nat) { p.siege = { nat, prog: 0 }; if (p.owner != null && S.nations[p.owner].you && nat !== p.owner) emit('siegeOnYou', { prov: p.id, by: nat }); }
     const n = S.nations[nat], defender = p.ctrl != null ? S.nations[p.ctrl] : null;
     let days = (p.owner == null ? D.balance.coloniseDays || 120 : 26) * (bio(p).siege || 1) * (has(n, 'artillery') ? .6 : 1) * (1 + .35 * p.b.fort);
     if (defender && defender.trait === 'mount') days *= 1.3;
@@ -200,6 +200,7 @@ function completeSiege(p, nid) {
   if (p.owner === nid) { p.ctrl = nid; log(`${N(n)} liberates ${PN(p)}.`, null, 3); return; }
   p.ctrl = nid;
   const owner = S.nations[p.owner], isCap = p.id === owner.cap;
+  if (owner.you) emit('lostProv', { prov: p.id, by: nid, cap: isCap });
   log(`${N(n)} occupies ${PN(p)}${isCap ? `, the capital of ${N(owner)}` : ''}.`, null, isCap ? 6 : 3);
 }
 // ---------- Battles ----------

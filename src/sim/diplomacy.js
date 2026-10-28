@@ -101,6 +101,7 @@ export function declareWar(att, def, silent) {
   const w = { id: S.nextWarId++, a: att.id, b: def.id, start: S.day, bs: { a: 0, b: 0 }, lastOffer: S.day };
   S.wars.push(w); trackPeak(w);
   if (!silent) log(`${N(att)} declares war on ${N(def)}.`, 'big', att.you || def.you ? 7 : 5);
+  if (def.you) emit('warOnYou', { war: w.id, att: att.id });
   if (att.you && !silent) S.st.declared = true;
   for (const x of def.allies.slice()) {
     const al = S.nations[x];
@@ -130,6 +131,7 @@ export function makePeace(w, winnerId, deal, note, forced) {
   const tr = S.day + D.balance.truceYears * YEAR;
   win.truce[loserId] = tr; lose.truce[winnerId] = tr;
   if (forced) log(`${N(lose)} has collapsed, its land overrun and its army broken. ${N(win)} dictates the peace.`, 'big', win.you || lose.you ? 8 : 5);
+  if (win.you || lose.you) emit('peace', { win: win.id, lose: lose.id, terms: isWhite(deal) ? '' : describeDeal(deal, w), forced: !!forced, white: isWhite(deal), provs: deal.provs.slice() });
   if (!isWhite(deal)) log(`Peace: ${N(lose)} yields to ${N(win)}: ${describeDeal(deal, w, true)}.`, 'big', win.you || lose.you ? 7 : 5);
   else log(`White peace between ${N(win)} and ${N(lose)}. ${note || ''}`, null, 4);
   if (win.you && deal.provs.length && S.day - w.start <= YEAR) unlockMedal('blitz');

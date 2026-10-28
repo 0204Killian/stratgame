@@ -76,6 +76,13 @@ function onSimEvent(type, d) {
   else if (type === 'nuke') { map.flash(d.prov, 'nuke'); sfx.boom(); }
   else if (type === 'toast') toast(d.lab, d.title, d.sub);
   else if (type === 'decision') sfx.ding();
+  else if (type === 'warOnYou') warPopup(d);
+  else if (type === 'siegeOnYou') { const p = S.P[d.prov], n = S.nations[d.by]; toast('Under siege', p.name, `${n.name} is besieging it.`, 'bad'); sfx.error(); }
+  else if (type === 'lostProv') {
+    const p = S.P[d.prov], n = S.nations[d.by]; toast(d.cap ? 'Capital taken' : 'Province occupied', p.name, `${n.name} now holds it. It produces nothing for you until you take it back.`, 'bad'); sfx.boom();
+    if (d.cap) { ui.paused = true; renderSpeed(); }
+  }
+  else if (type === 'peace') peacePopup(d);
   else if (type === 'peaceTable') {   // enemy crushed: stop the clock and open the treaty
     ui.paused = true; renderSpeed(); delete ui.peaceSel[d.war]; openManage('wars'); sfx.ding();
     const w = S.wars.find(x => x.id === d.war), e = w && S.nations[G.enemyIn(w, G.player().id)];
@@ -89,6 +96,52 @@ function onSimEvent(type, d) {
     setTimeout(() => endDialog(d, best), 400);
   }
 }
+// A war declared on you stops the clock: who, how strong they are, and what to do about it.
+function warPopup(d) {
+  const p = G.player(), e = S.nations[d.att], w = S.wars.find(x => x.id === d.war); if (!p || !e) return;
+  ui.paused = true; renderSpeed(); sfx.boom();
+  const allyT = n => n.allies.reduce((s, x) => s + (S.nations[x].alive ? G.troopsOf(S.nations[x]) : 0), 0);
+  const row = (n, t) => `<div class="brow"><span>${chip(n)}${esc(n.name)}</span><b>${num(t)} warriors · ${G.provsOf(n).length} tiles · ${num(G.popOf(n) * 1e6)} people</b></div>`;
+  showModal({ eyebrow: dateStr(S.day), title: 'War!', html: `<p><b>${esc(e.name)}</b> has declared war on you.</p>
+    <div class="budget">${row(e, G.troopsOf(e))}${row(p, G.troopsOf(p))}</div>
+    ${e.allies.length ? `<p class="hint">Their allies may join them with about ${num(allyT(e))} more.</p>` : ''}${p.allies.length ? `<p class="hint">Your allies have about ${num(allyT(p))} warriors.</p>` : ''}
+    <p class="hint">If they occupy all your land and destroy 70% of your army they can dictate any peace they like. Gather your war bands (drag a box round them, right-click to march) and defend your capital.</p>`,
+    buttons: [{ label: 'Open the war', primary: true, onClick: () => { openManage('wars'); } }, { label: 'Continue' }] });
+}
+// A peace that involves you: what was signed, and what you lost or won.
+function peacePopup(d) {
+  const p = G.player(), win = S.nations[d.win], lose = S.nations[d.lose]; if (!p) return;
+  if (win.you) { toast('Peace', `${lose.name} yields`, d.white ? 'White peace.' : plainMsg(d.terms)); return; }
+  ui.paused = true; renderSpeed(); sfx.error();
+  showModal({ eyebrow: dateStr(S.day), title: d.forced ? 'Your tribe has been crushed' : d.white ? 'White peace' : 'Peace treaty signed',
+    html: `<p>${d.forced ? `<b>${esc(win.name)}</b> overran your land and broke your army, and dictated the peace.` : `Peace with <b>${esc(win.name)}</b>.`}</p>
+      ${d.white ? '<p>Nothing changes hands.</p>' : `<p>Terms: ${esc(plainMsg(d.terms))}.</p>`}
+      ${p.alive ? `<p class="hint">You keep ${G.provsOf(p).length} tile${G.provsOf(p).length === 1 ? '' : 's'} and ${num(G.popOf(p) * 1e6)} people. A truce stops new wars between you for ${D.balance.truceYears} years.</p>` : '<p class="neg">Your tribe has no land left.</p>'}`,
+    buttons: [{ label: 'Continue', primary: true }] });
+}
+// Alert chips under the page buttons: what needs attention right now. Each one opens the right page or selection.
+function alertsHtml() {
+  const p = G.player(); if (!p || !p.alive) return '';
+  const out = [], chipA = (cls, txt, act, arg, title) => out.push(`<button class="alert ${cls}" data-act="${act}" data-arg="${arg ?? ''}" ${title ? `title="${esc(title)}"` : ''}>${txt}</button>`);
+  for (const w of G.warsOf(p.id)) { const e = S.nations[G.enemyIn(w, p.id)], sc = G.warScore(w, p.id); chipA('bad', `War: ${esc(e.name)} ${sc > 0 ? '+' : ''}${sc}%`, 'mgOpen', 'wars'); }
+  const mine = new Set(G.provsOf(p).map(q => q.id));
+  const foes = S.armies.filter(a => mine.has(a.prov) && G.atWar(a.nat, p.id));
+  if (foes.length) chipA('bad', `Enemy in your land: ${num(foes.reduce((s, a) => s + a.troops, 0))}`, 'alSel', foes.map(a => a.id).join(','), 'Select them');
+  for (const q of G.provsOf(p)) if (q.siege && q.siege.nat !== p.id) chipA('bad', `${esc(q.name)} besieged ${Math.round(q.siege.prog * 100)}%`, 'selProv', q.id);
+  const occ = G.provsOf(p).filter(q => q.ctrl !== p.id); if (occ.length) chipA('bad', `${occ.length} tile${occ.length > 1 ? 's' : ''} occupied`, 'selProv', occ[0].id);
+  if ((p.fed ?? 1) < .95) chipA('warn', `Hungry: ${Math.round(p.fed * 100)}% fed`, 'alGood', 'bread');
+  if ((p.warm ?? 1) < .95) chipA('warn', `Cold: ${Math.round(p.warm * 100)}% firewood`, 'alGood', 'wood');
+  if ((p.toolSat ?? 1) < .95) chipA('warn', `Tools short: ${Math.round(p.toolSat * 100)}%`, 'alGood', 'tools');
+  const pb = G.popBreakdown(p);
+  if (pb.free > Math.max(20, pb.canWork * .2)) chipA('info', `${num(pb.free)} idle workers`, 'mgOpen', 'bld', 'Free workers can staff new buildings or act as builders');
+  const stalled = S.P.filter(q => q.build && q.build.nat === p.id && q.build.prog > 0 && (q.build.staffed || 0) < .5);
+  if (stalled.length) chipA('warn', `${stalled.length} build${stalled.length > 1 ? 's' : ''} short of builders`, 'mgOpen', 'bld');
+  const broken = G.armiesOf(p).filter(a => G.mor(a) < G.MORALE.broken); if (broken.length) chipA('warn', `${broken.length} band${broken.length > 1 ? 's' : ''} broken`, 'alSel', broken.map(a => a.id).join(','));
+  if (p.treasury < 0) chipA('bad', 'In debt: soldiers deserting', 'mgOpen', 'econ');
+  if (S.techOffers.length && p.rp >= G.techCost(p)) chipA('good', 'Research ready', 'mgOpen', 'tech');
+  return out.join('');
+}
+function renderAlerts() { const el = $('alerts'), h = S && S.phase === 'game' ? alertsHtml() : ''; if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; } }
 let ribbonT = 0;
 function showRibbon(html, ms, isHtml) { const r = $('ribbon'); r.innerHTML = isHtml ? html : esc(html); r.hidden = false; clearTimeout(ribbonT); ribbonT = setTimeout(() => r.hidden = true, ms || 6000); }
 
@@ -105,7 +158,7 @@ function loop(t) {
       if (S.over) { ui.paused = true; renderSpeed(); }
     } else acc = 0;
     keyPan(dt);
-    if (t - lastPanel > 300) { lastPanel = t; renderTopbar(); renderMgBar(); if (!ui.hold) refreshPanel(); }
+    if (t - lastPanel > 300) { lastPanel = t; renderTopbar(); renderMgBar(); renderAlerts(); if (!ui.hold) refreshPanel(); }
   } else keyPan(dt);
   map.draw(t, { selProv: ui.sel && ui.sel.kind === 'prov' ? ui.sel.id : null, selArmies: ui.sel && ui.sel.kind === 'armies' ? new Set(ui.sel.ids) : null, hoverProv: ui.hoverProv, setup: ui.setup, mapMode: ui.mapMode, preview: ui.preview, get forceBase() { return ui.forceBase; }, set forceBase(v) { ui.forceBase = v; } });
   requestAnimationFrame(loop);
@@ -171,6 +224,7 @@ function renderTopbar() {
   set('tManpower', kfmt(p.manpower));
   const food = Math.min(p.fed ?? 1, p.warm ?? 1); set('tFood', Math.round(food * 100) + '%', food < .95);
   set('tPop', G.popOf(p) * 1e6 >= 1e4 ? kfmt(G.popOf(p) * 1e6) : num(G.popOf(p) * 1e6));
+  { const pb = G.popBreakdown(p); set('tFree', num(pb.free)); }
   const ready = S.techOffers.length && p.rp >= G.techCost(p);
   set('tResearch', ready ? 'Ready!' : `${Math.floor(p.rp / G.techCost(p) * 100)}%`);
   $('tResearch').classList.toggle('pos', !!ready);
@@ -184,6 +238,7 @@ function buildWindows() {
     $(id).addEventListener('pointerdown', () => { ui.hold = true; });
   }
   $('mgbar').addEventListener('click', e => { const b = e.target.closest('[data-mg]'); if (b) toggleManage(b.dataset.mg); });
+  $('alerts').addEventListener('click', onPanelClick);
   document.querySelectorAll('.stat[data-tab]').forEach(el => el.onclick = () => openManage(el.dataset.tab));
 }
 function refreshPanel(force) { if (!S || S.phase !== 'game') return; refreshSel(force); refreshManage(force); }
@@ -222,6 +277,8 @@ function onPanelClick(e) {
     case 'recHere': ui.mg.rec = { ...(ui.mg.rec || { sw: 0, sp: 0 }), prov: +arg }; openManage('army'); break;
     // ---- management screens ----
     case 'mgOpen': openManage(arg); break;
+    case 'alSel': select({ kind: 'armies', ids: arg.split(',').map(Number) }, true); break;
+    case 'alGood': ui.mg.good = arg; openManage('res'); break;
     case 'mgTab': openManage(arg); break;
     case 'mgClose': closeManage(); break;
     case 'mgGood': ui.mg.good = arg; refreshManage(true); break;
