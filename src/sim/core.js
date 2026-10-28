@@ -113,7 +113,8 @@ export const upkeepMult = n => (has(n, 'logistics') ? .5 : 1) * n.maint;
 export function monthlyIncome(n) {
   let inc = 0; for (const p of S.P) if (p.owner === n.id && p.ctrl === n.id) inc += p.gdp * n.tax / 12;
   const up = troopsOf(n) * UPKEEP / 12 * upkeepMult(n);
-  return { inc, up, net: inc - up };
+  const wages = (n.conPay || 0) * MONTH / 7 / 1e9;   // builders on the tribe's payroll
+  return { inc, up, wages, net: inc - up - wages };
 }
 export const quality = n => memo('q' + n.id, () => qualityRaw(n));
 function qualityRaw(n) {

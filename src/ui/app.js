@@ -133,9 +133,9 @@ function alertsHtml() {
   if ((p.warm ?? 1) < .95) chipA('warn', `Cold: ${Math.round(p.warm * 100)}% firewood`, 'alGood', 'wood');
   if ((p.toolSat ?? 1) < .95) chipA('warn', `Tools short: ${Math.round(p.toolSat * 100)}%`, 'alGood', 'tools');
   const pb = G.popBreakdown(p);
-  if (pb.free > Math.max(20, pb.canWork * .2)) chipA('info', `${num(pb.free)} idle workers`, 'mgOpen', 'bld', 'Free workers can staff new buildings or act as builders');
+  if (pb.idle > Math.max(20, pb.canWork * .1)) chipA('info', `${num(pb.idle)} idle workers`, 'mgOpen', 'bld', 'More people than jobs and land: build, or they move away');
   const stalled = S.P.filter(q => q.build && q.build.nat === p.id && q.build.prog > 0 && (q.build.staffed || 0) < .5);
-  if (stalled.length) chipA('warn', `${stalled.length} build${stalled.length > 1 ? 's' : ''} short of builders`, 'mgOpen', 'bld');
+  if (stalled.length) chipA('warn', `${stalled.length} build${stalled.length > 1 ? 's' : ''} short of builders`, 'mgOpen', 'bld', 'Build more construction centres');
   const broken = G.armiesOf(p).filter(a => G.mor(a) < G.MORALE.broken); if (broken.length) chipA('warn', `${broken.length} band${broken.length > 1 ? 's' : ''} broken`, 'alSel', broken.map(a => a.id).join(','));
   if (p.treasury < 0) chipA('bad', 'In debt: soldiers deserting', 'mgOpen', 'econ');
   if (S.techOffers.length && p.rp >= G.techCost(p)) chipA('good', 'Research ready', 'mgOpen', 'tech');

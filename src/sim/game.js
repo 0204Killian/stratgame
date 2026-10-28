@@ -4,7 +4,7 @@ import { S, D, setState, setData, R, pick, rnd, newTribeName, MIN_ARMY, shuffle,
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
 import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor, mixOf, MORALE } from './military.js';
-import { orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvinceFor, rawWorkforce, workforce, freeWorkers as freeWorkersOf, buildersNeeded as buildersNeededOf } from './industry.js';
+import { orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvinceFor, rawWorkforce, workforce, subsistenceCap, freeWorkers as freeWorkersOf, buildersNeeded as buildersNeededOf } from './industry.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation, weeklyNation, dailyNation, ERA_TRAITS } from './economy.js';
 import { aiArmies } from './ai.js';
@@ -14,8 +14,8 @@ import { triggerEvent, resolveDecision } from './events.js';
 export * from './core.js';
 export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays, legDays, etaDays, routeDays } from './military.js';
 export { goodsOutlook, producerOf } from './industry.js';
-export { livingStandard, tribeStandard, vacancies, idleWorkers, jobsWanted } from './population.js';
-export { GOODS, ECON, workforce, rawWorkforce, draftShare, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor } from './industry.js';
+export { livingStandard, tribeStandard, vacancies, idleWorkers, jobsWanted, subsistenceWorkers, jobWage } from './population.js';
+export { GOODS, ECON, workforce, rawWorkforce, draftShare, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor, subsistenceCap, subsistenceWage, isCon } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
 export const SAVE_VERSION = 3;
@@ -69,7 +69,9 @@ export function popBreakdown(n) {
   const people = ps.reduce((s, p) => s + p.pop * 1e6, 0), raw = ps.reduce((s, p) => s + rawWorkforce(p), 0);
   const soldiers = troopsOf(n), canWork = ps.reduce((s, p) => s + workforce(p), 0), employed = ps.reduce((s, p) => s + Math.min(workforce(p), p.work || 0), 0);
   const building = ps.reduce((s, p) => s + (p.busy || 0), 0);
-  return { people, raw, soldiers, canWork, employed, free: Math.max(0, canWork - employed), building, dependants: Math.max(0, people - raw), deaths: n.deaths || 0, occupiedPeople: provsOf(n).filter(p => p.ctrl !== n.id).reduce((s, p) => s + p.pop * 1e6, 0) };
+  const free = Math.max(0, canWork - employed), subs = Math.min(free, ps.reduce((s, p) => s + Math.min(subsistenceCap(p), Math.max(0, workforce(p) - (p.work || 0))), 0));
+  const wages = ps.reduce((s, p) => s + (p.wages || 0), 0), income = ps.reduce((s, p) => s + (p.inc || 0) * workforce(p), 0);
+  return { people, raw, soldiers, canWork, employed, free, subs, idle: Math.max(0, free - subs), building, wage: employed > 0 ? wages / employed : 0, income: canWork > 0 ? income / canWork : 0, dependants: Math.max(0, people - raw), deaths: n.deaths || 0, occupiedPeople: provsOf(n).filter(p => p.ctrl !== n.id).reduce((s, p) => s + p.pop * 1e6, 0) };
 }
 // Soldiers who don't come home are gone from the population: compare each nation's troops with yesterday,
 // allowing for recruits and discharges, and take the difference off the people (weekly, spread by population).

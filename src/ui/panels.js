@@ -2,7 +2,7 @@
 // using data-act / data-arg attributes, so re-rendering never loses event handlers.
 import * as G from '../sim/game.js';
 import { S, D } from '../sim/game.js';
-import { num, kfmt, fmtPop, fmtGdp, fmtPct, dateStr, esc, chip, natName, fmtMsg } from './format.js';
+import { num, kfmt, fmtPop, fmtGdp, fmtPct, fmtPrice, dateStr, esc, chip, natName, fmtMsg } from './format.js';
 
 export const TABS = [
   { k: 'sel', n: 'Selection', key: 'Q' }, { k: 'econ', n: 'Tribe', key: 'E' }, { k: 'wars', n: 'Wars', key: 'W' },
@@ -71,8 +71,10 @@ function industryPanel(pr, p) {
     const B = D.buildings[k], lv = pr.b[k], pl = G.canPlace(pr, k);
     if (!lv && !pl.ok) continue;
     const eco = B.kind !== 'mil', set = G.setting(pr, k), out = (pr.out && pr.out[k]) || 0, staffed = lv && eco ? (pr.staff?.[k] || 0) / (lv * Math.max(set, 1e-9)) : 0;
-    const outG = eco ? Object.keys(B.methods ? G.outputsOf(pr, k) : B.out)[0] : null;
-    let info = eco ? (lv ? `${kfmt(out)} ${D.goods[outG].n.toLowerCase()}/wk · ${kfmt(lv * B.jobs * set)} jobs · ${Math.round(Math.min(1, staffed) * 100)}% staffed` : `${kfmt(B.jobs)} jobs a level`) : B.d;
+    const con = G.isCon(k), outG = eco && !con ? Object.keys(B.methods ? G.outputsOf(pr, k) : B.out)[0] : null;
+    const wage = pr.wageBy?.[k] ? ` · wage ${fmtPrice(pr.wageBy[k])}/wk${con ? ' from the treasury' : ''}` : '';
+    let info = con ? (lv ? `${kfmt((pr.staff?.[k] || 0) * B.jobs)} paid builders for any project in the tribe · ${Math.round(Math.min(1, staffed) * 100)}% staffed${wage}` : `${kfmt(B.jobs)} builders a level, paid from the treasury`)
+      : eco ? (lv ? `${kfmt(out)} ${D.goods[outG].n.toLowerCase()}/wk · ${kfmt(lv * B.jobs * set)} jobs · ${Math.round(Math.min(1, staffed) * 100)}% staffed${wage}` : `${kfmt(B.jobs)} jobs a level`) : B.d;
     if (eco && B.in && lv) { const sat = p.procSat?.[k], lim = p.procLimit?.[k]; if (sat != null && sat < .99) info += ` · <span class="neg">${Math.round(sat * 100)}%, short of ${lim ? D.goods[lim].n.toLowerCase() : 'inputs'}</span>`; }
     if (eco && B.kind === 'raw' && lv && (p.toolSat ?? 1) < .99) info += ` · <span class="neg">tools ${Math.round(p.toolSat * 100)}%</span>`;
     const c1 = G.buildCost(k, 1), c5 = G.buildCost(k, 5);
@@ -87,9 +89,9 @@ function industryPanel(pr, p) {
   if (pr.build) {
     const B = D.buildings[pr.build.k], need = G.buildersNeeded(pr), st = pr.build.staffed || 0;
     h += `<div class="cons"><div><b>Building ${B.n}${pr.build.lv > 1 ? ' ×' + pr.build.lv : ''}</b> · ${Math.round(pr.build.prog * 100)}%</div><div class="bar"><span style="width:${Math.round(pr.build.prog * 100)}%"></span></div>
-      <div class="sub">${kfmt(need)} builders needed · ${Math.round(st * 100)}% staffed · ${kfmt(pr.build.local || 0)} from here, ${kfmt(pr.build.remote || 0)} from the rest of the tribe${st < .99 ? ' · <span class="neg">not enough idle workers in the whole tribe: lower a building\'s output to free some</span>' : ''}</div>
+      <div class="sub">${kfmt(need)} builders needed · ${Math.round(st * 100)}% pace · ${kfmt(pr.build.pro || 0)} paid builders, ${kfmt(pr.build.vol || 0)} volunteers${st < .99 ? ' · <span class="neg">construction centres are busy: build more, or wait for other projects to finish</span>' : ''}</div>
       <div class="btns">${btn('cancelBuild', pr.id, 'Cancel · half the materials back', { cls: 'danger' })}</div></div>`;
-  } else h += `<p class="hint">${kfmt(fw)} free workers here. Builders come from idle workers here first, then from nearby provinces; hover +1 for the cost. One project at a time per province.</p>`;
+  } else h += `<p class="hint">${kfmt(fw)} free workers here. Paid builders from your construction centres work on projects in the order they were started; volunteers from free workers fill gaps at a quarter of the pace. Hover +1 for the cost. One project at a time per province.</p>`;
   return h;
 }
 // Live battle: both sides' rows, morale and losses.
@@ -110,8 +112,9 @@ function tabProvince(ui) {
     ${ctrl && ctrl !== owner ? row('Occupied by', chip(ctrl) + natName(ctrl)) : ''}
     ${row('Terrain', terrainText(pr))}${pr.res === 'port' ? row('Harbour', 'Natural harbour: armies can cross sea routes') : ''}
     ${row('Population', `${fmtPop(pr.pop)} <span class="sub">· ${num(G.rawWorkforce(pr))} of working age</span>`)}
-    ${owner && pr.ctrl === pr.owner ? row('Workers', `${num(Math.min(G.workforce(pr), pr.work || 0))} employed · <span class="${G.freeWorkers(pr) > 5 ? 'pos' : ''}">${num(G.freeWorkers(pr))} idle</span>${G.draftShare(owner) > .005 ? ` <span class="sub">· ${num(G.rawWorkforce(pr) - G.workforce(pr))} away in the army</span>` : ''}`) : ''}
-    ${owner && pr.ctrl === pr.owner ? row('Living', `${Math.round(G.livingStandard(owner, pr) * 100)}% <span class="sub">· food, firewood and work${G.vacancies(pr) >= 1 ? ` · ${num(G.vacancies(pr))} jobs open, drawing people in` : G.idleWorkers(pr) >= 5 ? ' · too few jobs, people move away' : ''}</span>`) : ''}
+    ${owner && pr.ctrl === pr.owner ? row('Workers', `${num(Math.min(G.workforce(pr), pr.work || 0))} employed · ${num(G.subsistenceWorkers(pr))} farming their own land${G.idleWorkers(pr) >= 1 ? ` · <span class="neg">${num(G.idleWorkers(pr))} idle</span>` : ''} <span class="sub">· land feeds ${num(G.subsistenceCap(pr))}</span>${G.draftShare(owner) > .005 ? ` <span class="sub">· ${num(G.rawWorkforce(pr) - G.workforce(pr))} away in the army</span>` : ''}`) : ''}
+    ${owner && pr.ctrl === pr.owner ? row('Living', `${Math.round(G.livingStandard(owner, pr) * 100)}% <span class="sub">· food, firewood and income${G.vacancies(pr) >= 1 ? ` · ${num(G.vacancies(pr))} jobs open, drawing people in` : G.idleWorkers(pr) >= 5 ? ' · more people than jobs and land, the idle move away' : ''}</span>`) : ''}
+    ${owner && pr.ctrl === pr.owner ? row('Income', `${fmtPrice(pr.inc || 0)}/wk per worker <span class="sub">· jobs pay ${fmtPrice(G.jobWage(owner, pr))}, own land ${fmtPrice(G.subsistenceWage(pr))}</span>`) : ''}
     ${owner && pr.ctrl === pr.owner && ((pr.migIn || 0) >= 1 || (pr.migOut || 0) >= 1) ? row('Moving', `${pr.migIn >= 1 ? `<span class="pos">+${num(pr.migIn)} arrived</span> ` : ''}${pr.migOut >= 1 ? `<span class="neg">−${num(pr.migOut)} left</span>` : ''} <span class="sub">· last month</span>`) : ''}
     ${row('GDP', fmtGdp(pr.gdp))}${row('Garrison', `${num(G.garrison(pr))} <span class="sub">· smallest army that can siege it</span>`)}
     ${pr.siege ? row('Siege', chip(S.nations[pr.siege.nat]) + Math.round(pr.siege.prog * 100) + '%') : ''}
@@ -150,6 +153,7 @@ export function buildEcon() {
     <div class="brow"><span>Treasury</span><b id="eTreas"></b></div>
     <div class="brow"><span>Taxes</span><b id="eInc" class="pos"></b></div>
     <div class="brow"><span>Army upkeep</span><b id="eUp" class="neg"></b></div>
+    <div class="brow"><span>Builders' wages</span><b id="eWg" class="neg"></b></div>
     <div class="brow total"><span>Net per month</span><b id="eNet"></b></div>
     <div class="brow"><span>Treasury in 12 months</span><b id="eFc"></b></div>
   </div>
@@ -164,6 +168,8 @@ export function buildEcon() {
     <div class="brow"><span>Homes with firewood</span><b id="eWarm"></b></div>
     <div class="brow"><span>Stone tools supplied</span><b id="eTools"></b></div>
     <div class="brow"><span>Workers employed</span><b id="eEmp"></b></div>
+    <div class="brow"><span>Farming their own land</span><b id="eSubs"></b></div>
+    <div class="brow"><span>Average wage</span><b id="eWage"></b></div>
   </div>
   <div class="btns"><button data-act="mgOpen" data-arg="res">Resources (G)</button><button data-act="mgOpen" data-arg="bld">Buildings (B)</button><button data-act="mgOpen" data-arg="army">Army (M)</button></div>
   <h3>Policy</h3>
@@ -188,7 +194,7 @@ export function updateEcon(ui) {
   const m = G.monthlyIncome(p), fl = G.forceLimit(p), $ = id => document.getElementById(id);
   const set = (id, t, cls) => { const e = $(id); if (!e) return; if (e.textContent !== t) e.textContent = t; if (cls !== undefined) e.className = cls; };
   set('eTreas', fmtGdp(p.treasury), p.treasury < 0 ? 'neg' : ''); set('eGdp', fmtGdp(G.gdpOf(p)) + ' a year');
-  set('eInc', '+' + fmtGdp(m.inc)); set('eUp', '−' + fmtGdp(m.up));
+  set('eInc', '+' + fmtGdp(m.inc)); set('eUp', '−' + fmtGdp(m.up)); set('eWg', '−' + fmtGdp(m.wages || 0));
   set('eNet', (m.net >= 0 ? '+' : '') + fmtGdp(m.net), m.net < 0 ? 'neg' : 'pos');
   const fc = p.treasury + m.net * 12; set('eFc', fmtGdp(fc), fc < 0 ? 'neg' : '');
   set('eFL', num(fl)); set('eArms', num(G.troopsOf(p)), G.troopsOf(p) > fl ? 'neg' : ''); set('eMP', `${num(p.manpower)} · +${kfmt(fl * .025)}/mo`);
@@ -203,6 +209,8 @@ export function updateEcon(ui) {
   const ps = G.provsOf(p).filter(q => q.ctrl === p.id), wf = ps.reduce((s, q) => s + G.workforce(q), 0), wk = ps.reduce((s, q) => s + (q.work || 0), 0);
   set('eFed', Math.round((p.fed ?? 1) * 100) + '%', (p.fed ?? 1) < .95 ? 'neg' : 'pos'); set('eWarm', Math.round((p.warm ?? 1) * 100) + '%', (p.warm ?? 1) < .95 ? 'neg' : 'pos'); set('eTools', Math.round((p.toolSat ?? 1) * 100) + '%', (p.toolSat ?? 1) < .95 ? 'neg' : '');
   set('eEmp', `${kfmt(wk)} of ${kfmt(wf)} · ${Math.round(wk / Math.max(1, wf) * 100)}%`);
+  const pb = G.popBreakdown(p); set('eSubs', `${kfmt(pb.subs)}${pb.idle >= 1 ? ` · ${kfmt(pb.idle)} idle` : ''}`);
+  set('eWage', `${fmtPrice(pb.wage)}/wk in work · ${fmtPrice(pb.income)}/wk on average`);
 }
 
 // ---------- Wars ----------

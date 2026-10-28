@@ -17,17 +17,32 @@ A real-time grand strategy game from the stone age up. You found a small farming
 - Every province has a biome (plains, forest, hills, mountains, desert). Stone can be quarried anywhere; farms and forestry are not possible in deserts or mountains.
 - Goods sit in one national stockpile. Farms grow wheat or fiber, forestry cuts wood, quarries cut stone. All three need stone tools from toolsmiths, or they work at half speed.
 - Bakeries turn wheat into bread, burning wood. People eat one bread a week; hungry provinces shrink, and subsistence farming covers only part of the gap.
-- Buildings employ the province's own workers. Construction costs wood and stone and needs free workers as builders. You can turn each building's work rate down to free workers.
+- Buildings employ the province's own workers and pay them wages. Construction costs wood and stone, and builders from construction centres (see below). You can turn each building's work rate down to free workers.
 - Armies are swordsmen (front row) and spearmen (back row); each soldier needs a sword or a spear. Battles run day by day; 1:1 fills both rows.
 
 ## Population
 
-Population moves, in the spirit of Victoria 3. Every province has a living standard built from food, firewood and work.
-Growth follows it. Once a month, idle workers and their families leave provinces with no jobs for provinces with
-open jobs in the same tribe, nearer ones first. People also leave a hungry, cold or jobless tribe for a better-off
-neighbour that has work for them, as long as the two tribes are not at war. Builders are not tied to their
-province: a project takes idle workers locally first, then from the nearest provinces of the tribe. The Buildings
-page shows who moved and where the builders came from (`src/sim/population.js`).
+Population moves, in the spirit of Victoria 3. Every province has a living standard built from food, firewood and
+income, and growth follows it. Workers are in one of three places:
+- **Employed** in a building, on a wage: a share of the value their building adds.
+- **Farming their own land** (subsistence). Every province's land feeds a number of workers depending on its size and
+  biome. They earn little, so growth there is slow, but they are not idle and they stay put. This is why newly taken,
+  undeveloped land keeps its people. They take new jobs in their own province as you build there.
+- **Idle**: more people than jobs and land. They and their families move once a month to provinces of the tribe with
+  open jobs, nearer and better paid ones first.
+
+Subsistence farmers only trickle away (a fraction of a percent a month) and only for jobs paying well above what the
+land gives them. People leave the tribe altogether when it is hungry, cold or has many idle, for a better-off
+neighbour with work, as long as the two tribes are not at war (`src/sim/population.js`).
+
+## Construction
+
+Construction centres employ builders (10 a level) on the tribe's average wage, paid from the treasury: the
+"Builders' wages" line on the Tribe page. Their builders work on every project in the tribe, in the order the projects
+were started. Whatever they can't cover is helped along by unpaid volunteers from free workers, at a quarter of the
+pace, so a tribe without a centre can still build one. Lower a centre's work rate to cut its wages. Every tribe starts
+with one in its capital. Tuning lives in `balance.json` under `econ` (`wageShare`, `refWage`, `subsistenceWage`,
+`subPerCell`, `volunteerRate`, `subMoveRate`, `subMoveCap`, `subMoveGap`).
 
 ## Project layout
 ```

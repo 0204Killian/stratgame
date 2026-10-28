@@ -12,7 +12,7 @@ const card = (lab, val, sub, cls) => `<div class="mcard"><span class="eyebrow">$
 const pct = x => Math.round((x ?? 1) * 100) + '%';
 const q = x => (x > 0 && x < 10 ? (Math.round(x * 10) / 10).toString() : kfmt(x));   // small amounts keep a decimal
 const dot = c => `<span class="rdot" style="background:${c}"></span>`;
-const SHORT = { farm: 'Farm', forestry: 'Wood', quarry: 'Stone', toolsmith: 'Tools', bakery: 'Bakery', swordsmith: 'Sword', spearsmith: 'Spear', fort: 'Fort', harbour: 'Harbr' };
+const SHORT = { construction: 'Build', farm: 'Farm', forestry: 'Wood', quarry: 'Stone', toolsmith: 'Tools', bakery: 'Bakery', swordsmith: 'Sword', spearsmith: 'Spear', fort: 'Fort', harbour: 'Harbr' };
 const USE_NAME = { people: 'People', construction: 'Construction', army: 'Recruiting and reinforcing', spoilage: 'Spoilage' };
 
 // Small trend line for the last 26 weeks of a stock.
@@ -28,9 +28,9 @@ function popStrip(p) {
   const b = G.popBreakdown(p), tot = Math.max(1, b.people), w = v => (v / tot * 100).toFixed(1) + '%';
   const seg = (v, c, lab) => v > 0 ? `<span style="width:${w(v)};background:${c}" title="${lab}: ${num(v)}"></span>` : '';
   const key = (c, lab, v, sub) => `<span class="pk"><i style="background:${c}"></i><b>${num(v)}</b> ${lab}${sub ? ` <span class="sub">${sub}</span>` : ''}</span>`;
-  return `<div class="popstrip"><div class="pbar">${seg(b.employed, '#9ccc54', 'Employed')}${seg(b.free, '#f2b134', 'Idle workers')}${seg(b.soldiers, '#ef7457', 'In the army')}${seg(b.dependants, '#4b6478', 'Children and elderly')}</div>
-    <div class="pkeys">${key('#9ccc54', 'employed', b.employed)}${key('#f2b134', 'idle', b.free, b.building ? `(${num(b.building)} building)` : 'can staff new buildings')}${key('#ef7457', 'in the army', b.soldiers, `${Math.round(b.soldiers / Math.max(1, b.raw) * 100)}% of workers`)}${key('#4b6478', 'children and elderly', b.dependants)}
-    <span class="pk sub">${num(b.people)} people · living standard ${pct(G.tribeStandard(p))}${p.migMoved >= 1 ? ` · ${num(p.migMoved)} moved for work last month` : ''}${p.emig >= 1 ? ` · <span class="neg">${num(p.emig)} left the tribe</span>` : ''}${p.immig >= 1 ? ` · <span class="pos">${num(p.immig)} arrived from other tribes</span>` : ''}${b.occupiedPeople ? ` · ${num(b.occupiedPeople)} in occupied land` : ''}${b.deaths ? ` · ${num(b.deaths)} lost to war` : ''}</span></div></div>`;
+  return `<div class="popstrip"><div class="pbar">${seg(b.employed, '#9ccc54', 'Employed')}${seg(b.subs, '#b9a26a', 'Farming their own land')}${seg(b.idle, '#f2b134', 'Idle workers')}${seg(b.soldiers, '#ef7457', 'In the army')}${seg(b.dependants, '#4b6478', 'Children and elderly')}</div>
+    <div class="pkeys">${key('#9ccc54', 'employed', b.employed)}${key('#b9a26a', 'farming their own land', b.subs, 'can staff new buildings')}${key('#f2b134', 'idle', b.idle, b.idle >= 1 ? 'move to where the jobs are' : '')}${key('#ef7457', 'in the army', b.soldiers, `${Math.round(b.soldiers / Math.max(1, b.raw) * 100)}% of workers`)}${key('#4b6478', 'children and elderly', b.dependants)}
+    <span class="pk sub">${num(b.people)} people · living standard ${pct(G.tribeStandard(p))} · wage ${fmtPrice(b.wage)}/wk${b.building >= 1 ? ` · ${num(b.building)} volunteering on building sites` : ''}${p.migMoved >= 1 ? ` · ${num(p.migMoved)} moved for work last month` : ''}${p.emig >= 1 ? ` · <span class="neg">${num(p.emig)} left the tribe</span>` : ''}${p.immig >= 1 ? ` · <span class="pos">${num(p.immig)} arrived from other tribes</span>` : ''}${b.occupiedPeople ? ` · ${num(b.occupiedPeople)} in occupied land` : ''}${b.deaths ? ` · ${num(b.deaths)} lost to war` : ''}</span></div></div>`;
 }
 
 export const manageHead = ui => { const s = SCREENS.find(x => x.k === ui.mg.tab) || SCREENS[0]; return `<div class="mhead"><nav class="mtabs"><button class="on">${s.n}<small>${s.key}</small></button></nav><button data-act="mgClose" class="mclose" title="Close (Esc)">Close</button></div>`; };
@@ -114,30 +114,31 @@ function buildings(p, ui) {
   const ps = myProvs(p), keys = Object.keys(D.buildings);
   let h = popStrip(p) + `<h3>By building</h3><div class="btable"><div class="bth"><span>Building</span><span>Levels</span><span>Workers</span><span>Output/wk</span><span>Value/wk</span><span>Inputs</span><span>Work rate</span><span>Build where best</span></div>`;
   for (const k of keys) {
-    const B = D.buildings[k], eco = B.kind !== 'mil';
+    const B = D.buildings[k], eco = B.kind !== 'mil', con = G.isCon(k);
     const lv = ps.reduce((s, x) => s + x.b[k], 0), building = S.P.filter(x => x.build && x.build.nat === p.id && x.build.k === k).reduce((s, x) => s + x.build.lv, 0);
     const want = ps.reduce((s, x) => s + x.b[k] * G.setting(x, k), 0), got = ps.reduce((s, x) => s + ((x.staff && x.staff[k]) || 0), 0);
-    const out = ps.reduce((s, x) => s + ((x.out && x.out[k]) || 0), 0), og = eco ? Object.keys(B.methods ? B.methods[0].out : B.out)[0] : null;
+    const out = ps.reduce((s, x) => s + ((x.out && x.out[k]) || 0), 0), og = eco && !con ? Object.keys(B.methods ? B.methods[0].out : B.out)[0] : null;
+    const wk = ps.reduce((s, x) => s + ((x.staff && x.staff[k]) || 0) * B.jobs, 0), wpay = ps.reduce((s, x) => s + ((x.wageBy && x.wageBy[k]) || 0) * ((x.staff && x.staff[k]) || 0) * B.jobs, 0), wage = wk > 0 ? wpay / wk : 0;
     const rates = [...new Set(ps.filter(x => x.b[k]).map(x => G.setting(x, k)))], rate = rates.length === 1 ? rates[0] : null;
     const lim = (p.procLimit || {})[k];
-    const inp = !eco || !lv ? '' : B.kind === 'raw' ? `tools ${pct(p.toolSat)}` : lim ? `${pct((p.procSat || {})[k])} · short of ${D.goods[lim].n.toLowerCase()}` : `${Object.keys(B.in).map(g => D.goods[g].n.toLowerCase()).join(', ')} 100%`;
+    const inp = !eco || !lv ? '' : con ? `wages ${money(wpay * 30 / 7)}/mo` : B.kind === 'raw' ? `tools ${pct(p.toolSat)}` : lim ? `${pct((p.procSat || {})[k])} · short of ${D.goods[lim].n.toLowerCase()}` : `${Object.keys(B.in).map(g => D.goods[g].n.toLowerCase()).join(', ')} 100%`;
     const inSat = B.kind === 'raw' ? p.toolSat ?? 1 : (p.procSat || {})[k] ?? 1;
     const best = G.bestProvinceFor(p, k), c1 = G.buildCost(k, 1), c5 = G.buildCost(k, 5);
     const ok1 = best && G.canAfford(p, c1), ok5 = best && !B.max && G.canAfford(p, c5);
     h += `<div class="btr"><span>${dot(B.c)}<b>${B.n}</b></span><span>${lv}${building ? ` <span class="sub">+${building}</span>` : ''}</span>
-      <span title="People working here / jobs open at the current work rate">${eco && lv ? `${num(got * B.jobs)} / ${num(want * B.jobs)}${got < want * .95 ? ` <span class="neg">${pct(got / want)}</span>` : ''}` : '—'}</span><span>${eco && lv ? q(out) + ' ' + D.goods[k === 'farm' ? 'wheat' : og].n.toLowerCase() : '—'}</span><span title="Value added: what it makes, less what it uses up">${eco && lv ? money((p.vaBy || {})[k] || 0) : '—'}</span>
+      <span title="People working here / jobs open at the current work rate">${eco && lv ? `${num(got * B.jobs)} / ${num(want * B.jobs)}${got < want * .95 ? ` <span class="neg">${pct(got / want)}</span>` : ''}` : '—'}</span><span>${con && lv ? `${num(p.conUsed || 0)} / ${num(p.conCap || 0)} builders busy` : eco && lv ? q(out) + ' ' + D.goods[k === 'farm' ? 'wheat' : og].n.toLowerCase() : '—'}</span><span title="Value added: what it makes, less what it uses up · wage per worker a week">${con && lv ? `<span class="sub">wage ${fmtPrice(wage)}</span>` : eco && lv ? `${money((p.vaBy || {})[k] || 0)}${wage ? ` <span class="sub">· wage ${fmtPrice(wage)}</span>` : ''}` : '—'}</span>
       <span class="${eco && lv && inSat < .95 ? 'neg' : ''}">${inp || '—'}</span>
       <span>${eco && lv ? `<select data-act="mgRate" data-arg="${k}">${rate == null ? '<option selected>Mixed</option>' : ''}${[1, .75, .5, .25, 0].map(v => `<option value="${v}" ${rate === v ? 'selected' : ''}>${v ? v * 100 + '%' : 'Off'}</option>`).join('')}</select>` : ''}</span>
       <span class="bbtn">${btn('mgBuildBest', `${k}:1`, '+1', { dis: !ok1, title: best ? `In ${best.name}` : 'No province free to build' })}${B.max ? '' : btn('mgBuildBest', `${k}:5`, '+5', { dis: !ok5, title: best ? `In ${best.name}` : 'No province free to build' })}<span class="sub">${best ? esc(best.name) : 'none free'}</span></span></div>`;
   }
   const jobsF = ps.reduce((s, x) => s + Math.min(G.workforce(x), x.work || 0), 0), jobsT = ps.reduce((s, x) => s + econKeys(x), 0);
   h += `<div class="btr total"><span><b>All buildings</b></span><span>${ps.reduce((s, x) => s + keys.reduce((t, k) => t + x.b[k], 0), 0)}</span><span>${num(jobsF)} / ${num(jobsT)}</span><span></span><span>${money(Object.values(p.vaBy || {}).reduce((s, v) => s + v, 0))}</span><span></span><span></span><span></span></div>`;
-  h += `</div><p class="hint">Workers: people working there and jobs open at the current work rate. Farm output counts wheat and fiber together. "Build where best" picks the province with the most free workers, and the best land for farms, forestry and quarries.</p>`;
+  h += `</div><p class="hint">Workers: people working there and jobs open at the current work rate. Workers earn a share of what their building adds; builders in construction centres are paid the average wage from the treasury, so lower their work rate to save money. Farm output counts wheat and fiber together. "Build where best" picks the province with the most free workers, and the best land for farms, forestry and quarries.</p>`;
   // construction queue
   const cons = S.P.filter(x => x.build && x.build.nat === p.id);
-  h += `<h3>Under construction</h3>`;
+  h += `<h3>Under construction</h3><p class="hint">${num(p.conCap || 0)} paid builders from construction centres, ${num(p.conUsed || 0)} busy · wages ${money((p.conPay || 0) * 30 / 7)} a month. They take projects in the order you started them; volunteers fill gaps at a quarter of the pace.</p>`;
   h += cons.length ? `<div class="ctable">${cons.map(x => { const B = D.buildings[x.build.k], st = x.build.staffed || 0;
-    return `<div class="ctr"><button class="link" data-act="mgProv" data-arg="${x.id}">${esc(x.name)}</button><span>${B.n}${x.build.lv > 1 ? ' ×' + x.build.lv : ''}</span><span class="bar"><span style="width:${Math.round(x.build.prog * 100)}%"></span></span><span class="${st < .99 && x.build.prog > 0 ? 'neg' : ''}" title="${num(x.build.local || 0)} local builders, ${num(x.build.remote || 0)} from other provinces">${x.build.prog > 0 || st > 0 ? pct(st) + ' builders' + (x.build.remote >= 1 ? ` <span class="sub">(${num(x.build.remote)} from elsewhere)</span>` : '') : 'starting'}</span>${btn('mgCancel', x.id, 'Cancel', { cls: 'danger', title: 'Half the materials come back' })}</div>`; }).join('')}</div>`
+    return `<div class="ctr"><button class="link" data-act="mgProv" data-arg="${x.id}">${esc(x.name)}</button><span>${B.n}${x.build.lv > 1 ? ' ×' + x.build.lv : ''}</span><span class="bar"><span style="width:${Math.round(x.build.prog * 100)}%"></span></span><span class="${st < .99 && x.build.prog > 0 ? 'neg' : ''}" title="${num(x.build.pro || 0)} paid builders, ${num(x.build.vol || 0)} volunteers">${x.build.prog > 0 || st > 0 ? pct(st) + ' pace' + ((x.build.vol || 0) >= 1 ? ` <span class="sub">(${num(x.build.vol)} volunteers)</span>` : '') : 'starting'}</span>${btn('mgCancel', x.id, 'Cancel', { cls: 'danger', title: 'Half the materials come back' })}</div>`; }).join('')}</div>`
     : `<p class="hint">Nothing is being built.</p>`;
   // province grid
   const s = ui.mg.sort || { k: 'pop', d: -1 }, val = (x, k) => k === 'name' ? x.name : k === 'pop' ? x.pop : k === 'free' ? G.freeWorkers(x) : k === 'emp' ? x.emp || 0 : k === 'mig' ? (x.migIn || 0) - (x.migOut || 0) : x.b[k];

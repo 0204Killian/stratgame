@@ -1,7 +1,7 @@
 {
  "month": 30,
  "year": 360,
- "upkeep": 5e-06,
+ "upkeep": 0.000005,
  "truceYears": 3,
  "nukeCooldownYears": 3,
  "maxYears": 120,
@@ -79,7 +79,16 @@
    "swordsmith"
   ],
   "toolMinOutput": 0.5,
-  "woodPerPerson": 0.1
+  "woodPerPerson": 0.1,
+  "wageShare": 0.6,
+  "refWage": 150,
+  "subsistenceWage": 60,
+  "subPerCell": 16,
+  "volunteerRate": 0.25,
+  "idleMoveRate": 0.3,
+  "subMoveRate": 0.02,
+  "subMoveCap": 0.0025,
+  "subMoveGap": 1.6
  },
  "minArmy": 5,
  "startPop": [

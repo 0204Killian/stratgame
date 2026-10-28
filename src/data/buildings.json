@@ -136,6 +136,20 @@
   "weeks": 6,
   "d": "Arms spearmen, the back row"
  },
+ "construction": {
+  "n": "Construction centre",
+  "kind": "con",
+  "c": "#d08a4e",
+  "jobs": 10,
+  "cp": 1,
+  "cost": {
+   "wood": 6,
+   "stone": 6
+  },
+  "builders": 6,
+  "weeks": 6,
+  "d": "Employs builders on wages from the treasury; they work on every project in the tribe"
+ },
  "fort": {
   "n": "Fort",
   "kind": "mil",

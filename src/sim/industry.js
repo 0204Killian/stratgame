@@ -20,6 +20,12 @@ export const draftShare = n => memo('draft' + n.id, () => {
 export const workforce = p => p.owner == null ? rawWorkforce(p) : rawWorkforce(p) * (1 - draftShare(S.nations[p.owner]));
 export const setting = (p, k) => (p.set && p.set[k] != null ? p.set[k] : 1);
 export const biome = p => D.biomes[p.biome] || D.biomes.plains;
+// Subsistence: land that no building works still feeds people who farm it for themselves. They earn little,
+// but they are not idle: they stay put unless much better pay is on offer elsewhere.
+export const subsistenceCap = p => (p.cells ? p.cells.length : 60) * biome(p).sub * E().subPerCell;
+export const subsistenceWage = p => E().subsistenceWage * (.5 + 2 * biome(p).sub);
+export const isCon = k => D.buildings[k].kind === 'con';
+export const CON = () => Object.keys(D.buildings).filter(isCon);
 export const yieldOf = (p, k) => { const y = biome(p).y[k]; return y == null ? 1 : y; };
 export function emptyStock() { return Object.fromEntries(GOODS().map(g => [g, 0])); }
 export function outputsOf(p, k) {
@@ -109,7 +115,26 @@ export function weeklyProduction(n, ps = S.P.filter(p => p.owner === n.id && p.c
       addVa(p, k, v); }
     (n.procSat || (n.procSat = {}))[k] = sat;
   }
-  // 5. people eat bread and burn firewood, shared evenly across controlled provinces
+  // 5. wages: workers take a share of the value their building adds (never less than the land would give them);
+  // builders in construction centres are paid the tribe's average wage out of the treasury.
+  let paid = 0, paidN = 0;
+  for (const p of ps) {
+    const sw = subsistenceWage(p); p.wageBy = {}; p.wages = 0;
+    for (const k of econ) {
+      const w = (p.staff[k] || 0) * D.buildings[k].jobs; if (!w || isCon(k)) continue;
+      const wg = Math.max(sw, E().wageShare * (p.vaBy[k] || 0) / w);
+      p.wageBy[k] = wg; p.wages += wg * w; paid += wg * w; paidN += w;
+    }
+  }
+  const natWage = paidN > 0 ? paid / paidN : E().refWage; n.avgWage = natWage;
+  let conPay = 0, conCap = 0;
+  for (const p of ps) {
+    for (const k of CON()) { const w = (p.staff[k] || 0) * D.buildings[k].jobs; if (!w) continue; p.wageBy[k] = natWage; p.wages += natWage * w; conPay += natWage * w; conCap += w * (D.buildings[k].cp || 1); }
+    const wf = workforce(p); p.subs = Math.max(0, Math.min(subsistenceCap(p), wf - p.work));
+    p.inc = wf > 0 ? (p.wages + p.subs * subsistenceWage(p)) / wf : 0;   // average weekly income per worker
+  }
+  n.conPay = conPay; n.conCap = conCap;
+  // 6. people eat bread and burn firewood, shared evenly across controlled provinces
   let people = 0; for (const p of ps) people += p.pop * 1e6;
   const needB = people * E().breadPerPerson; dem.bread += needB;
   const eat = Math.min(st.bread, needB); st.bread -= eat; use.bread += eat; add(useBy, 'bread', 'people', eat);
@@ -147,7 +172,7 @@ export function orderBuild(n, p, k, lv = 1) {
   if (!canAfford(n, cost)) return { ok: false, why: 'Not enough materials.' };
   for (const g in cost) n.stock[g] -= cost[g];
   spend(n, 'construction', cost);
-  p.build = { k, lv, nat: n.id, prog: 0, staffed: 0 }; S.mapVersion++;
+  p.build = { k, lv, nat: n.id, prog: 0, staffed: 0, t: S.day }; S.mapVersion++;
   return { ok: true };
 }
 // The best place for a new building: free workers to staff it, good land for raw industries.
@@ -158,28 +183,35 @@ export function bestProvinceFor(n, k) {
   return c.sort((a, b) => score(b) - score(a))[0] || null;
 }
 export const buildersNeeded = p => p.build ? p.build.lv * D.buildings[p.build.k].builders : 0;
-// Idle workers: not in a job and not out building. Builders can come from anywhere in the tribe.
+// Free workers: not in a building and not out volunteering. Subsistence farmers count: they can take up new jobs.
 export const freeWorkers = p => Math.max(0, workforce(p) - (p.work || 0) - (p.busy || 0));
+// Construction: the paid builders of the tribe's construction centres go to projects in the order they were
+// started, wherever they are. Anything they can't cover is helped along by unpaid volunteers from free workers
+// (locals first, then the nearest provinces), who only manage a quarter of a builder's pace.
 export function weeklyConstruction(n, ps = S.P) {
   const mine = S.P.filter(p => p.owner === n.id && p.ctrl === n.id);
   for (const p of mine) p.busy = 0;
-  const hop = Math.max(8, Math.sqrt(S.W * S.H / S.P.length)) * (S.CS || 8);
-  for (const p of ps) {
-    if (!p.build || p.build.nat !== n.id) continue;
+  let cap = n.conCap || 0; const vr = E().volunteerRate;
+  const list = ps.filter(p => p.build && p.build.nat === n.id).sort((a, b) => (a.build.t ?? 0) - (b.build.t ?? 0) || a.id - b.id);
+  for (const p of list) {
     const B = D.buildings[p.build.k];
     if (p.owner !== n.id || p.ctrl !== n.id) { if (n.you) log(`Construction of ${B.n.toLowerCase()} in ${PN(p)} is abandoned.`, 'bad', 2); p.build = null; S.mapVersion++; continue; }
-    // builders: locals first, then the nearest provinces of the tribe, then anyone further away
-    const need = Math.max(1, buildersNeeded(p)); let got = Math.min(need, freeWorkers(p)); p.busy += got; const local = got;
-    if (got < need) for (const q of mine.filter(q => q !== p && freeWorkers(q) > 0).sort((a, b) => Math.hypot(a.cx - p.cx, a.cy - p.cy) - Math.hypot(b.cx - p.cx, b.cy - p.cy))) {
-      if (got >= need) break; const t = Math.min(need - got, freeWorkers(q)); q.busy += t; got += t;
+    const need = Math.max(1, buildersNeeded(p)), pro = Math.min(need, cap); cap -= pro;
+    let vol = 0;
+    if (pro < need) {
+      const want = (need - pro) / vr;
+      const near = [p, ...mine.filter(q => q !== p && freeWorkers(q) > 0).sort((a, b) => Math.hypot(a.cx - p.cx, a.cy - p.cy) - Math.hypot(b.cx - p.cx, b.cy - p.cy))];
+      for (const q of near) { if (vol >= want) break; const t = Math.min(want - vol, freeWorkers(q)); if (t > 0) { q.busy += t; vol += t; } }
     }
-    const staff = Math.min(1, got / need);
-    p.build.staffed = staff; p.build.local = local; p.build.remote = got - local; p.build.prog += staff / B.weeks;
+    const staff = Math.min(1, (pro + vol * vr) / need);
+    p.build.staffed = staff; p.build.pro = pro; p.build.vol = vol; p.build.prog += staff / B.weeks;
+    delete p.build.local; delete p.build.remote;
     if (p.build.prog >= 1) {
       const { k, lv } = p.build; p.b[k] += lv; p.build = null; S.mapVersion++;
       if (n.you) { log(`${B.n}${lv > 1 ? ` ×${lv}` : ''} completed in ${PN(p)}.`, null, 3); emit('toast', { lab: 'Construction complete', title: `${B.n}${lv > 1 ? ` ×${lv}` : ''} · ${p.name}`, sub: B.d }); }
     }
   }
+  n.conUsed = (n.conCap || 0) - cap;
 }
 
 // ---------- starting economy ----------
@@ -192,7 +224,7 @@ export function startingEconomy(n, provIds) {
   const bread = people * E().breadPerPerson * 1.05;
   fp.b.farm = Math.max(1, Math.ceil(bread / (B.farm.methods[0].out.wheat * Math.max(.1, yieldOf(fp, 'farm')))));
   cap.b.bakery = Math.max(1, Math.ceil(bread / B.bakery.out.bread));
-  cap.b.toolsmith = 1; cap.b.swordsmith = 1; cap.b.spearsmith = 1; qp.b.quarry = 1;
+  cap.b.toolsmith = 1; cap.b.swordsmith = 1; cap.b.spearsmith = 1; qp.b.quarry = 1; for (const k of CON()) cap.b[k] = 1;
   const wood = cap.b.bakery * B.bakery.in.wood + people * E().woodPerPerson + B.toolsmith.in.wood + B.swordsmith.in.wood + B.spearsmith.in.wood;
   bp.b.forestry = Math.max(1, Math.ceil(wood * 1.15 / (B.forestry.out.wood * Math.max(.1, yieldOf(bp, 'forestry')))));
   n.stock = emptyStock();
@@ -213,6 +245,11 @@ export function aiPlanEconomy(n) {
   if (breadCap < breadNeed && st.bread < f.dem.bread * 8 && (fed('bakery') || st.wheat > f.dem.wheat * 4)) need.push(['bakery', Math.ceil((breadNeed - breadCap) / B.bakery.out.bread)]);
   const wheatNeed = Math.max(breadCap, breadNeed) * B.bakery.in.wheat / B.bakery.out.bread, wheatCap = levelsOf(n, 'farm') * wheat * avgY('farm') * .9;
   if (wheatCap < wheatNeed && st.wheat < f.dem.wheat * 8) need.push(['farm', Math.ceil((wheatNeed - wheatCap) / (wheat * avgY('farm') * .9))]);
+  // builders: enough construction centres for what is being built, while the treasury can pay them
+  const queued = S.P.reduce((s, p) => s + (p.build && p.build.nat === n.id ? buildersNeeded(p) : 0), 0);
+  const conLv = levelsOf(n, 'construction'), conJobs = B.construction.jobs * (B.construction.cp || 1);
+  for (const p of ps) if (p.b.construction) (p.set || (p.set = {})).construction = n.treasury < 0 ? .25 : 1;
+  if (n.treasury > 0 && queued > conLv * conJobs * 1.2 && conLv < 2 + Math.floor(ps.length / 3)) need.push(['construction', 1]);
   // tools for every raw industry
   const toolCap = levelsOf(n, 'toolsmith') * B.toolsmith.out.tools, toolNeed = f.dem.tools * 1.15 + .5;
   if (toolCap < toolNeed && fed('toolsmith')) need.push(['toolsmith', Math.ceil((toolNeed - toolCap) / B.toolsmith.out.tools)]);
