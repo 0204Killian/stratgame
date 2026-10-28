@@ -1,6 +1,7 @@
 // Monthly economy, growth, construction, recruitment, research and internal politics.
-import { S, D, R, pick, rnd, newNationName, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, resCount, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar, buildCost } from './core.js';
-import { makeArmy, nuke, nukeReady, orderMove, reinforce } from './military.js';
+import { S, D, R, pick, rnd, newNationName, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar } from './core.js';
+import { makeArmy, nuke, nukeReady, orderMove, reinforce, mixOf, MORALE } from './military.js';
+import { weeklyProduction, weeklyConstruction, biome, aiPlanEconomy } from './industry.js';
 import { declareWar, warScore, payReparations } from './diplomacy.js';
 import { createNation } from './nation.js';
 
@@ -26,41 +27,48 @@ function breakaway(n) {
 const auto = n => !n.you || S.st.autoPlayer;
 
 // Weekly: income, upkeep, reparations; desertion while in debt. Rates are monthly, paid in weekly slices.
-export function weeklyNation(n) {
+export function weeklyNation(n, ps) {
+  weeklyProduction(n, ps); weeklyConstruction(n, S.P.filter(p => p.build && p.build.nat === n.id));
   const f = 7 / MONTH, m = monthlyIncome(n);
   n.treasury += m.net * f; payReparations(n, m.inc * f);
   if (n.treasury < 0) { armiesOf(n).forEach(a => a.troops *= 1 - .03 * f); if (n.you && R() < .3 * f * 4) log(`${N(n)} cannot pay its armies. Soldiers are deserting.`, 'bad', 3); }
 }
+// Split a number of new soldiers into swordsmen and spearmen, steering the army towards 1:1 and limited by weapons in stock.
+export function armTroops(n, want, curSw = 0, curTotal = 0) {
+  const st = n.stock;
+  let sw = Math.max(0, Math.min(want, .5 * (curTotal + want) - curSw)), sp = want - sw;
+  sw = Math.min(sw, st.swords); sp = Math.min(sp, st.spears);
+  let rest = want - sw - sp;
+  if (rest > 0) { const x = Math.min(rest, st.swords - sw); sw += x; rest -= x; sp += Math.min(rest, st.spears - sp); }
+  return { sw: Math.max(0, sw), sp: Math.max(0, sp) };
+}
 // Daily: manpower regrows and idle armies in friendly land refill, at the same monthly rates spread over the days.
+// Every new soldier needs a sword or a spear from the stockpile.
 export function dailyNation(n) {
   const f = 1 / MONTH, fl = forceLimit(n);
   n.manpower = Math.min(fl * .5, n.manpower + fl * .025 * f);
   if (n.treasury <= 0 || n.manpower <= 0) return;
-  const rr = (.1 + .05 * Math.min(2, resCount(n, 'factory'))) * n.maint * f;
+  const rr = .1 * n.maint * f;
   let room = Math.max(0, fl - troopsOf(n));
   for (const a of S.armies) {
     if (a.nat !== n.id || room <= 0 || n.manpower <= 0) continue;
     const p = S.P[a.prov]; if (p.ctrl !== n.id || a.path.length) continue;
-    const add = Math.min(n.manpower, a.troops * rr, room);
-    if (add > 0) { reinforce(a, add); n.manpower -= add; room -= add; }
+    const add = Math.min(n.manpower, a.troops * rr, room); if (add <= 0) continue;
+    const { sw, sp } = armTroops(n, add, a.troops * mixOf(a), a.troops); if (sw + sp <= 0) continue;
+    n.stock.swords -= sw; n.stock.spears -= sp;
+    reinforce(a, sw + sp, MORALE.recruit, sw / (sw + sp)); n.manpower -= sw + sp; room -= sw + sp;
   }
 }
 export function monthlyNation(n) {
+  // Population follows food: bread from the stockpile, topped up by subsistence farming that depends on the land.
   for (const p of provsOf(n)) {
     if (devastated(p)) continue;
-    const occ = p.ctrl !== n.id;
-    p.pop *= 1 + (occ ? 0 : .001 + (p.res === 'farm' ? .0015 : 0) + (has(n, 'green') ? .0008 : 0) + p.b.farm * .0008 - Math.max(0, n.milPct - 4) * .00008);
-    p.gdp *= 1 + (occ ? -.002 : .0022 + (p.res === 'oil' ? .0015 : 0) + (has(n, 'industry') ? .0015 : 0) + (n.trait === 'oil' ? .0008 : 0) + (!n.you && S.diff === 'hard' ? .0008 : 0) + rnd(-.002, .002) + p.b.factory * .001 + p.b.harbour * .0004 - (n.tax - .15) * .012 - Math.max(0, n.milPct - 3) * .0002);
+    const occ = p.ctrl !== n.id, fed = occ ? 0 : (n.fed ?? 1), sat = fed + (1 - fed) * biome(p).sub;
+    const g = .004 * (sat - .7) - Math.max(0, n.milPct - 4) * .00008;
+    p.pop *= 1 + g;
+    p.gdp *= 1 + g + (occ ? -.002 : .0012 + ((p.emp || 0) - .45) * .004 + (has(n, 'industry') ? .0015 : 0) + (n.trait === 'oil' ? .0008 : 0) + (!n.you && S.diff === 'hard' ? .0008 : 0) + rnd(-.002, .002) + p.b.harbour * .0004 - (n.tax - .15) * .012 - Math.max(0, n.milPct - 3) * .0002);
   }
-  // construction (checked on every province the builder started in)
-  for (const p of S.P) {
-    if (!p.build || p.build.nat !== n.id) continue;
-    if (p.owner !== n.id || p.ctrl !== n.id) { if (n.you) log(`Construction of ${D.buildings[p.build.k].n.toLowerCase()} in ${PN(p)} is abandoned.`, 'bad', 2); p.build = null; S.mapVersion++; continue; }
-    if (S.day >= p.build.done) {
-      const k = p.build.k; p.b[k]++; p.build = null; if (k === 'factory') p.gdp *= 1.08; S.mapVersion++;
-      if (n.you) { log(`${D.buildings[k].n} level ${p.b[k]} completed in ${PN(p)}.`, null, 3); emit('toast', { lab: 'Construction complete', title: `${D.buildings[k].n} · ${p.name}`, sub: D.buildings[k].d }); }
-    }
-  }
+  if (n.you && n.fed < .6 && R() < .5) log(`${N(n)} is short of bread: only ${Math.round(n.fed * 100)}% of the people are fed. Build farms and bakeries.`, 'bad', 4);
   if (auto(n)) aiEconomy(n, forceLimit(n));
   // research
   n.rp += researchPerMonth(n);
@@ -72,23 +80,17 @@ function shuffle3(keys) { const a = keys.slice(); for (let i = a.length - 1; i >
 
 function aiEconomy(n, fl) {
   if (n.treasury < 0) n.maint = .7; else if (n.treasury > gdpOf(n) * .3) n.maint = 1;
-  if (R() < .12) {
-    const ps = provsOf(n).filter(p => p.ctrl === n.id && !p.build);
-    if (ps.length) {
-      const p = pick(ps), ks = Object.keys(D.buildings).filter(k => p.b[k] < D.buildings[k].max && (!D.buildings[k].coast || p.coastal));
-      if (ks.length) { const k = pick(ks), c = buildCost(p, k); if (n.treasury > c * 2) { n.treasury -= c; p.build = { k, nat: n.id, done: S.day + D.balance.buildDays }; S.mapVersion++; } }
-    }
-  }
+  aiPlanEconomy(n);
   const t = troopsOf(n);
   // Armies can only be raised in land you hold: the capital if you control it, otherwise your most populous controlled province.
   const held = S.P[n.cap].ctrl === n.id ? S.P[n.cap] : provsOf(n).filter(p => p.ctrl === n.id).sort((x, y) => y.pop - x.pop)[0];
   const spawn = held ? held.id : null;
   if (spawn != null && (t < fl * .5 || !armiesOf(n).length) && n.manpower > Math.min(fl * .08, 20000) && n.treasury > 0) {
-    const tr = Math.min(n.manpower, fl * .3), c = tr * UPKEEP * 1.5;
-    if (n.treasury >= c || !armiesOf(n).length) {
-      n.manpower -= tr; n.treasury -= c;
+    const { sw, sp } = armTroops(n, Math.min(n.manpower, fl * .3)), tr = sw + sp, c = tr * UPKEEP * 1.5;
+    if (tr >= 1000 && (n.treasury >= c || !armiesOf(n).length)) {
+      n.manpower -= tr; n.treasury -= c; n.stock.swords -= sw; n.stock.spears -= sp;
       const home = armiesOf(n).find(a => a.prov === spawn && !a.path.length && a.prog === 0);
-      if (home) reinforce(home, tr); else makeArmy(n, spawn, tr);
+      if (home) reinforce(home, tr, MORALE.recruit, sw / tr); else makeArmy(n, spawn, tr, sw / tr);
     }
   }
   if (hasNuke(n) && nukeReady(n)) {
@@ -106,10 +108,6 @@ function aiEconomy(n, fl) {
 function internalEvents(n) {
   if (!n.alive) return;
   if (R() < (1 - stab(n)) * .004) revolt(n);
-  if (!has(n, 'green') && R() < (n.trait === 'famine' ? .012 : .003)) {
-    const ps = provsOf(n).filter(q => q.b.farm < 2);
-    if (ps.length) { const p = pick(ps), lost = p.pop * .2; p.pop -= lost; log(`Famine in ${PN(p)}, ${N(n)}. [[${Math.round(lost * 1e6)} people lost]]`, 'bad', 3); }
-  }
   if (R() < .004) { provsOf(n).forEach(p => p.gdp *= 1.06); log(`${N(n)}'s economy booms.`, null, 2); }
   if (n.leader === 'paranoid' && R() < .008) { armiesOf(n).forEach(a => a.troops *= .88); log(`${N(n)}'s paranoid leader purges the army.`, null, 2); }
   if (R() < (n.leader === 'senile' ? .01 : .0035)) { const old = D.leaderMap[n.leader]; n.leader = pick(D.leaders).k; log(`${N(n)}'s ${old.n.toLowerCase()} leader dies. The new leader is ${D.leaderMap[n.leader].n.toLowerCase()}.`, null, 3); }

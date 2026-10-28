@@ -2,7 +2,6 @@
  "month": 30,
  "year": 360,
  "upkeep": 2.5e-05,
- "buildDays": 180,
  "truceYears": 3,
  "nukeCooldownYears": 3,
  "maxYears": 120,
@@ -64,5 +63,21 @@
    ],
    "defNations": 24
   }
+ },
+ "econ": {
+  "workShare": 0.4,
+  "breadPerPerson": 1,
+  "rawOrder": [
+   "farm",
+   "forestry",
+   "quarry"
+  ],
+  "procOrder": [
+   "bakery",
+   "toolsmith",
+   "spearsmith",
+   "swordsmith"
+  ],
+  "toolMinOutput": 0.5
  }
 }

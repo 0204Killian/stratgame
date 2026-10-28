@@ -70,12 +70,11 @@ export const armiesOf = n => S.armies.filter(a => a.nat === n.id);
 export function troopsOf(n) { let s = 0; for (const a of S.armies) if (a.nat === n.id) s += a.troops; return s; }
 export const has = (n, k) => n.techs.includes(k);
 export const devastated = p => p.devUntil > S.day;
-export const resCount = (n, k) => S.P.filter(p => p.owner === n.id && p.ctrl === n.id && p.res === k && !devastated(p)).length;
 export const stab = n => gov(n).stab + leader(n).stab + (has(n, 'propaganda') ? .2 : 0) - Math.max(0, n.tax - .2) * 2;
 export const hasNuke = n => n.trait === 'nuke' || has(n, 'nukes');
 export const forceLimit = n => popOf(n) * 1e6 * n.milPct / 100;
 export const techCost = n => 10 + n.techs.length * 6;
-export const techExtra = (n, t) => (t.k === 'nukes' && resCount(n, 'uranium')) ? 0 : (t.extra || 0);
+export const techExtra = (n, t) => t.extra || 0;
 export const techAvail = n => D.techs.filter(t => !has(n, t.k) && !(t.k === 'nukes' && hasNuke(n)));
 export const researchPerMonth = n => (2 + Math.log10(Math.max(1, gdpOf(n))) * 1.5) / 12;
 export const warBetween = (x, y) => S.wars.find(w => (w.a === x && w.b === y) || (w.a === y && w.b === x));
@@ -86,7 +85,6 @@ export const allied = (x, y) => S.nations[x].allies.includes(y);
 export const truceWith = (x, y) => (S.nations[x].truce[y] || -1) > S.day;
 export const isPort = p => p.res === 'port' || p.b.harbour > 0;
 export const garrison = p => Math.max(1500, p.pop * 1e6 * (p.owner == null ? .004 : .003)) * (1 + .5 * p.b.fort);
-export const buildCost = (p, k) => (0.4 + p.gdp * .12) * (p.b[k] + 1) * (k === 'fort' ? 1.3 : 1);
 export const upkeepMult = n => (has(n, 'logistics') ? .5 : 1) * n.maint;
 export function monthlyIncome(n) {
   let inc = 0; for (const p of S.P) if (p.owner === n.id && p.ctrl === n.id) inc += p.gdp * n.tax / 12;
@@ -95,7 +93,7 @@ export function monthlyIncome(n) {
 }
 export const quality = n => memo('q' + n.id, () => qualityRaw(n));
 function qualityRaw(n) {
-  let q = 1 + leader(n).q + (has(n, 'artillery') ? .12 : 0) + .05 * Math.min(2, resCount(n, 'factory')) + .03 * Math.log10(Math.max(1, gdpOf(n)));
+  let q = 1 + leader(n).q + (has(n, 'artillery') ? .12 : 0) + .03 * Math.log10(Math.max(1, gdpOf(n)));
   if (n.you) q *= D.difficulties[S.diff].q;
   return q * (.6 + .4 * n.maint);
 }

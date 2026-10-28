@@ -137,7 +137,7 @@ export class Setup {
     this.$('draftName').innerHTML = title;
     if (this.ai || justFounded) this.$('flavor').textContent = '';
     const sl = justFounded ? null : S.slots[this.slot];
-    const land = sl ? `<dt>Land</dt><dd>${sl.length} provinces · ${sl.map(id => `<span class="rdot" style="background:${D.resources[S.P[id].res].c}"></span>${D.resources[S.P[id].res].n}`).join(', ')}</dd>` : '';
+    const land = sl ? `<dt>Land</dt><dd>${sl.length} provinces · ${sl.map(id => `<span class="rdot" style="background:${D.biomes[S.P[id].biome].c}"></span>${D.biomes[S.P[id].biome].n}`).join(', ')}</dd>` : '';
     this.$('draftStats').innerHTML = land + this.rows(d, justFounded || this.ready || this.cat >= cats.length ? null : cats[this.cat].key);
     this.app.onWorld();
   }

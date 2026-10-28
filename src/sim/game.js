@@ -1,19 +1,21 @@
 // Public API of the simulation. The UI reads state through these exports and changes it only through commands.
 import { S, D, setState, setData, R, pick, rnd, newNationName, clamp, MONTH, YEAR, UPKEEP, N, PN, log, emit, yearOf, unlockMedal,
-  player, provsOf, popOf, gdpOf, armiesOf, troopsOf, forceLimit, techCost, techExtra, techAvail, warBetween, atWar, warsOf, allied, truceWith, hasNuke, buildCost, monthlyIncome } from './core.js';
+  player, provsOf, popOf, gdpOf, armiesOf, troopsOf, forceLimit, techCost, techExtra, techAvail, warBetween, atWar, warsOf, allied, truceWith, hasNuke, monthlyIncome } from './core.js';
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
-import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor } from './military.js';
+import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor, mixOf, MORALE } from './military.js';
+import { orderBuild, ECON, provincesByOwner } from './industry.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
 import { monthlyNation, weeklyNation, dailyNation } from './economy.js';
 import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
-export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE } from './military.js';
+export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE } from './military.js';
+export { GOODS, ECON, workforce, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export function init(data) { setData(data); }
 
 export function newGame({ seed = (Math.random() * 2 ** 31) | 0, mapSize = 'small', nations, goal = 'hegemon', diff = 'normal' }) {
@@ -42,7 +44,7 @@ export function tick() {
   S.day++;
   dailyMilitary(); dailyAttrition();
   for (const n of S.nations) if (n.alive) dailyNation(n);
-  if (S.day % 7 === 0) for (const n of S.nations) if (n.alive) weeklyNation(n);
+  if (S.day % 7 === 0) { const byOwner = provincesByOwner(); for (const n of S.nations) if (n.alive) weeklyNation(n, byOwner.get(n.id) || []); }
   if (S.day % MONTH === 0) monthlyTick();
   aiArmies();
 }
@@ -119,48 +121,63 @@ export function cmdMove(armyIds, provId) {
 export function cmdStop(id) { const a = army(id); if (!mine(a) || a.retreat) return fail('Cannot stop this army.'); a.path = []; a.prog = 0; return { ok: true }; }
 export function cmdSplit(id) {
   const a = army(id); if (!mine(a) || a.path.length || a.troops < 2000) return fail('Only an idle army of 2,000+ can split.');
-  const b = makeArmy(S.nations[a.nat], a.prov, a.troops / 2); a.troops /= 2; b.mor = mor(a); return { ok: true, army: b.id };
+  const b = makeArmy(S.nations[a.nat], a.prov, a.troops / 2, mixOf(a)); a.troops /= 2; b.mor = mor(a); return { ok: true, army: b.id };
 }
 export function cmdMerge(ids) {
   const list = ids.map(army).filter(a => mine(a) && !a.path.length && a.prog === 0);
   if (list.length < 2 || !list.every(a => a.prov === list[0].prov)) return fail('Armies must be idle in the same province to merge.');
-  const keep = list[0]; for (const o of list.slice(1)) reinforce(keep, o.troops, mor(o));
+  const keep = list[0]; for (const o of list.slice(1)) reinforce(keep, o.troops, mor(o), mixOf(o));
   S.armies = S.armies.filter(a => !list.slice(1).includes(a)); return { ok: true, army: keep.id };
 }
 export function cmdDischarge(id, frac) {
   const a = army(id); if (!mine(a)) return fail('Not your army.');
   const n = S.nations[a.nat], l = a.troops * clamp(frac, 0, 1);
   n.manpower = Math.min(forceLimit(n) * .5, n.manpower + l * .5);
+  n.stock.swords += l * mixOf(a); n.stock.spears += l * (1 - mixOf(a));   // weapons go back into store
   a.troops -= l; if (a.troops < 300) S.armies = S.armies.filter(x => x !== a);
   return { ok: true };
 }
 export function recruitLimits() {
   const p = player(), fl = forceLimit(p), room = Math.max(0, fl - troopsOf(p));
-  return { fl, room, max: Math.floor(Math.min(p.manpower, room)), costPer: UPKEEP * 1.5, upkeepPer: UPKEEP / 12 * (p.techs.includes('logistics') ? .5 : 1) * p.maint };
+  return { fl, room, max: Math.floor(Math.min(p.manpower, room, p.stock.swords + p.stock.spears)), swords: Math.floor(p.stock.swords), spears: Math.floor(p.stock.spears), costPer: UPKEEP * 1.5, upkeepPer: UPKEEP / 12 * (p.techs.includes('logistics') ? .5 : 1) * p.maint };
 }
-export function cmdRecruit(provId, troops) {
+// Raise swordsmen and spearmen: each needs a sword or a spear from the stockpile.
+export function cmdRecruit(provId, sw, sp) {
   if (!canAct()) return fail('You cannot recruit now.');
   const p = player(), pr = S.P[provId], lim = recruitLimits();
   if (!pr || pr.owner !== p.id || pr.ctrl !== p.id) return fail('You can only recruit in provinces you own and control.');
-  troops = Math.floor(Math.min(troops, lim.max));
-  if (troops < 1000) return fail('Not enough manpower or room under your force limit.');
+  sw = Math.floor(Math.max(0, Math.min(sw, p.stock.swords))); sp = Math.floor(Math.max(0, Math.min(sp, p.stock.spears)));
+  const room = Math.floor(Math.min(p.manpower, lim.room));
+  if (sw + sp > room) { const k = room / (sw + sp); sw = Math.floor(sw * k); sp = Math.floor(sp * k); }
+  const troops = sw + sp;
+  if (troops < 1000) return fail('Not enough manpower, weapons or room under your force limit.');
   const cost = troops * lim.costPer; if (p.treasury < cost) return fail('Not enough money.');
-  p.manpower -= troops; p.treasury -= cost;
-  const a = makeArmy(p, provId, troops);
-  log(`${N(p)} raises ${troops.toLocaleString('en-IE')} soldiers in ${PN(pr)}.`, null, 1);
+  p.manpower -= troops; p.treasury -= cost; p.stock.swords -= sw; p.stock.spears -= sp;
+  const a = makeArmy(p, provId, troops, sw / troops);
+  log(`${N(p)} raises ${sw.toLocaleString('en-IE')} swordsmen and ${sp.toLocaleString('en-IE')} spearmen in ${PN(pr)}.`, null, 1);
   return { ok: true, army: a.id };
 }
-export function cmdBuild(provId, k) {
+export function cmdBuild(provId, k, lv = 1) {
   if (!canAct()) return fail('You cannot build now.');
-  const p = player(), pr = S.P[provId], B = D.buildings[k];
-  if (!pr || !B || pr.owner !== p.id || pr.ctrl !== p.id) return fail('You can only build in provinces you own and control.');
-  if (pr.build) return fail('This province is already building something.');
-  if (pr.b[k] >= B.max) return fail('Already at the maximum level.');
-  if (B.coast && !pr.coastal) return fail('Needs a coastal province.');
-  const c = buildCost(pr, k); if (p.treasury < c) return fail('Not enough money.');
-  p.treasury -= c; pr.build = { k, nat: p.id, done: S.day + D.balance.buildDays }; S.mapVersion++;
-  log(`${N(p)} starts building ${B.n.toLowerCase()} in ${PN(pr)}.`, null, 1);
+  const p = player(), pr = S.P[provId]; if (!pr || !D.buildings[k]) return fail('Not possible.');
+  const r = orderBuild(p, pr, k, Math.max(1, Math.floor(lv)));
+  if (!r.ok) return fail(r.why);
+  log(`${N(p)} starts building ${D.buildings[k].n.toLowerCase()}${pr.build.lv > 1 ? ` ×${pr.build.lv}` : ''} in ${PN(pr)}.`, null, 1);
   return { ok: true };
+}
+export function cmdCancelBuild(provId) {
+  const p = player(), pr = S.P[provId]; if (!pr || !pr.build || pr.build.nat !== p.id) return fail('Nothing to cancel.');
+  const c = D.buildings[pr.build.k].cost || {}; for (const g in c) p.stock[g] += c[g] * pr.build.lv * .5;   // half the materials come back
+  pr.build = null; S.mapVersion++; return { ok: true };
+}
+// How hard a building works in this province (0 to 1): lowering it frees workers for other jobs or for builders.
+export function cmdSetProduction(provId, k, v) {
+  const p = player(), pr = S.P[provId]; if (!pr || pr.owner !== p.id || !ECON().includes(k)) return fail('Not possible.');
+  (pr.set || (pr.set = {}))[k] = clamp(v, 0, 1); return { ok: true };
+}
+export function cmdSetCrop(provId, crop) {
+  const p = player(), pr = S.P[provId]; if (!pr || pr.owner !== p.id || !D.buildings.farm.methods.some(m => m.k === crop)) return fail('Not possible.');
+  pr.crop = crop; return { ok: true };
 }
 export function cmdPolicy({ tax, milPct, maint }) {
   const p = player(); if (!p) return fail('No nation.');

@@ -17,7 +17,7 @@
  {
   "k": "green",
   "n": "Green revolution",
-  "d": "No famines, faster growth"
+  "d": "+25% farm output"
  },
  {
   "k": "propaganda",
@@ -27,7 +27,7 @@
  {
   "k": "industry",
   "n": "Industrialisation",
-  "d": "Faster GDP growth everywhere"
+  "d": "+20% output from every workshop (bakeries, smiths, toolsmiths)"
  },
  {
   "k": "logistics",

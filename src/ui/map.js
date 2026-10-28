@@ -6,25 +6,31 @@ import { S, D, devastated, inBattle, mor, MORALE } from '../sim/game.js';
 import { kfmt } from './format.js';
 
 const SEA = '#15344a', INK = '#0b1620', FREE = [143, 136, 115], FREE2 = [133, 126, 106];
-export const BUILD_COL = { factory: '#ff8f6b', farm: '#9ccc54', fort: '#d6cfb8', harbour: '#5dd6e0' };
+export const BUILD_COL = { fort: '#d6cfb8', harbour: '#5dd6e0' };
 
 const rgbCache = new Map();
 function hexRgb(h) { let c = rgbCache.get(h); if (!c) { const v = parseInt(h.slice(1), 16); c = [v >> 16 & 255, v >> 8 & 255, v & 255]; rgbCache.set(h, c); } return c; }
 const shadeRgb = (c, f) => c.map(x => Math.round(f >= 0 ? x + (255 - x) * f : x * (1 + f)));
 
-export function drawRes(c, k, x, y, r, dim) {
-  const col = D.resources[k].c;
+// Terrain badge: a ring in the biome's colour with a small glyph.
+export function drawBiome(c, k, x, y, r, dim) {
+  const col = (D.biomes[k] || D.biomes.plains).c;
   c.save(); c.globalAlpha = dim ? .45 : 1;
   c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill(); c.lineWidth = r / 7; c.strokeStyle = col; c.stroke();
-  const s = r / 12; c.fillStyle = col; c.strokeStyle = col; c.lineWidth = 2 * s; c.lineCap = 'round'; c.beginPath();
-  if (k === 'oil') { c.moveTo(x, y - 7 * s); c.quadraticCurveTo(x + 7 * s, y + 1 * s, x, y + 6 * s); c.quadraticCurveTo(x - 7 * s, y + 1 * s, x, y - 7 * s); c.fill(); }
-  else if (k === 'farm') { for (const dx of [-4, 0, 4]) { c.moveTo(x + dx * s, y + 6 * s); c.lineTo(x + dx * s, y - 2 * s); } c.stroke(); c.beginPath(); for (const dx of [-4, 0, 4]) c.ellipse(x + dx * s, y - 4 * s, 1.6 * s, 3 * s, 0, 0, 7); c.fill(); }
-  else if (k === 'port') { c.moveTo(x, y - 6 * s); c.lineTo(x, y + 6 * s); c.moveTo(x - 4 * s, y - 3 * s); c.lineTo(x + 4 * s, y - 3 * s); c.moveTo(x - 6 * s, y + 1 * s); c.quadraticCurveTo(x, y + 10 * s, x + 6 * s, y + 1 * s); c.stroke(); }
-  else if (k === 'mount') { c.moveTo(x - 7 * s, y + 5 * s); c.lineTo(x - 1 * s, y - 6 * s); c.lineTo(x + 2 * s, y - 1 * s); c.lineTo(x + 4 * s, y - 4 * s); c.lineTo(x + 8 * s, y + 5 * s); c.closePath(); c.fill(); }
-  else if (k === 'uranium') { c.arc(x, y, 2 * s, 0, 7); c.fill(); c.beginPath(); for (const a of [-Math.PI / 2, Math.PI / 6, 5 * Math.PI / 6]) { c.moveTo(x, y); c.arc(x, y, 7 * s, a - .45, a + .45); c.closePath(); } c.fill(); }
-  else if (k === 'factory') { c.rect(x - 7 * s, y - 1 * s, 14 * s, 7 * s); c.rect(x - 5 * s, y - 7 * s, 3 * s, 6 * s); c.rect(x + 1 * s, y - 4 * s, 3 * s, 3 * s); c.fill(); }
+  const s = r / 12; c.fillStyle = col; c.strokeStyle = col; c.lineWidth = 2 * s; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
+  if (k === 'plains') { for (const dx of [-4, 0, 4]) { c.moveTo(x + dx * s, y + 6 * s); c.lineTo(x + dx * s, y - 2 * s); } c.stroke(); c.beginPath(); for (const dx of [-4, 0, 4]) c.ellipse(x + dx * s, y - 4 * s, 1.6 * s, 3 * s, 0, 0, 7); c.fill(); }
+  else if (k === 'forest') { c.moveTo(x, y - 8 * s); c.lineTo(x + 6 * s, y + 3 * s); c.lineTo(x - 6 * s, y + 3 * s); c.closePath(); c.fill(); c.beginPath(); c.moveTo(x, y + 3 * s); c.lineTo(x, y + 7 * s); c.stroke(); }
+  else if (k === 'hills') { c.moveTo(x - 8 * s, y + 5 * s); c.quadraticCurveTo(x - 4 * s, y - 6 * s, x, y + 2 * s); c.quadraticCurveTo(x + 4 * s, y - 4 * s, x + 8 * s, y + 5 * s); c.closePath(); c.fill(); }
+  else if (k === 'mountains') { c.moveTo(x - 7 * s, y + 5 * s); c.lineTo(x - 1 * s, y - 6 * s); c.lineTo(x + 2 * s, y - 1 * s); c.lineTo(x + 4 * s, y - 4 * s); c.lineTo(x + 8 * s, y + 5 * s); c.closePath(); c.fill(); }
+  else if (k === 'desert') { c.lineWidth = 2.6 * s; c.moveTo(x, y - 7 * s); c.lineTo(x, y + 7 * s); c.moveTo(x, y + 1 * s); c.lineTo(x - 4 * s, y + 1 * s); c.lineTo(x - 4 * s, y - 3 * s); c.moveTo(x, y - 1 * s); c.lineTo(x + 4 * s, y - 1 * s); c.lineTo(x + 4 * s, y - 5 * s); c.stroke(); }   // cactus
   c.restore();
 }
+function drawAnchor(c, x, y, r) {
+  const s = r / 12; c.save(); c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill();
+  c.strokeStyle = '#5dd6e0'; c.lineWidth = 2 * s; c.lineCap = 'round'; c.beginPath();
+  c.moveTo(x, y - 6 * s); c.lineTo(x, y + 6 * s); c.moveTo(x - 4 * s, y - 3 * s); c.lineTo(x + 4 * s, y - 3 * s); c.moveTo(x - 6 * s, y + 1 * s); c.quadraticCurveTo(x, y + 10 * s, x + 6 * s, y + 1 * s); c.stroke(); c.restore();
+}
+const mixRgb = (a, b, t) => a.map((x, i) => Math.round(x * (1 - t) + b[i] * t));
 
 export class MapView {
   constructor(canvas) {
@@ -119,18 +125,21 @@ export class MapView {
 
   // ---------- base layer ----------
   ensureWorld() { const key = `${S.seed}:${S.W}:${S.H}:${S.P.length}`; if (key !== this.worldKey || !this.segs) { this.worldKey = key; this.prepareWorld(); return true; } return false; }
-  renderBase(setup) {
-    this.ensureWorld();
+  renderBase(setup, mode) {
+    this.ensureWorld(); this.mode = mode;
     const g = this.bg, s = this.cellPx, BS = this.BS, W = S.W, H = S.H;
     g.setTransform(1, 0, 0, 1, 0, 0); g.imageSmoothingEnabled = false;
     g.drawImage(this.terrain, 0, 0);
     // province colours via one pixel per cell, scaled up
     const slotOf = new Map();
     if (setup) S.slots.forEach((sl, i) => { if (i >= S.nations.length) sl.forEach(id => slotOf.set(id, i === setup.curSlot)); });
+    const biomeCol = p => hexRgb((D.biomes[p.biome] || D.biomes.plains).c);
     const cols = S.P.map(p => {
-      if (p.owner != null) return shadeRgb(hexRgb(S.nations[p.owner].color), ((p.id * 37) % 7 - 3) * .025);
+      const shade = ((p.id * 37) % 7 - 3) * .025;
+      if (mode === 'terrain') return shadeRgb(biomeCol(p), shade);
+      if (p.owner != null) return shadeRgb(hexRgb(S.nations[p.owner].color), shade);
       if (slotOf.has(p.id)) return slotOf.get(p.id) ? [228, 180, 90] : [163, 155, 130];
-      return p.id % 2 ? FREE : FREE2;
+      return shadeRgb(mixRgb(FREE, biomeCol(p), .35), shade);   // free land hints at its terrain
     });
     const d = this.img.data;
     for (let i = 0, o = 0; i < W * H; i++, o += 4) { const r = S.reg[i]; if (r < 0) { d[o + 3] = 0; continue; } const c = cols[r]; d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255; }
@@ -158,7 +167,8 @@ export class MapView {
     g.lineWidth = Math.max(2, 1.2 * BS); g.stroke(this.coastPath);
     // resources, buildings, capitals
     for (const p of S.P) {
-      drawRes(g, p.res, p.cx * BS, (p.cy + 13) * BS, 7 * BS, devastated(p));
+      drawBiome(g, p.biome, p.cx * BS, (p.cy + 13) * BS, 7 * BS, devastated(p));
+      if (p.res === 'port') drawAnchor(g, (p.cx - 13) * BS, (p.cy + 13) * BS, 5 * BS);
       let x = (p.cx + 10) * BS; const y = (p.cy + 8) * BS;
       for (const k of Object.keys(BUILD_COL)) for (let i = 0; i < p.b[k]; i++) { g.fillStyle = INK; g.fillRect(x - BS, y - BS, 7 * BS, 12 * BS); g.fillStyle = BUILD_COL[k]; g.fillRect(x, y, 5 * BS, 10 * BS); x += 6 * BS; }
       if (p.build) { g.strokeStyle = '#f2b134'; g.lineWidth = BS; g.setLineDash([BS * 1.5, BS * 1.5]); g.strokeRect(x, y, 5 * BS, 10 * BS); g.setLineDash([]); }
@@ -207,7 +217,7 @@ export class MapView {
   draw(now, ui) {
     if (!S || !S.P.length) return;
     const stale = this.ver !== S.mapVersion;
-    if (ui.forceBase || (stale && now - this.lastBase > 150) || this.worldKey !== `${S.seed}:${S.W}:${S.H}:${S.P.length}`) { this.renderBase(ui.setup); ui.forceBase = false; }
+    if (ui.forceBase || this.mode !== ui.mapMode || (stale && now - this.lastBase > 150) || this.worldKey !== `${S.seed}:${S.W}:${S.H}:${S.P.length}`) { this.renderBase(ui.setup, ui.mapMode); ui.forceBase = false; }
     const g = this.g, dpr = this.dpr, z = this.zoom * dpr, lw = 1 / this.zoom;
     g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = SEA; g.fillRect(0, 0, this.c.width, this.c.height);
     g.setTransform(z, 0, 0, z, dpr * (this.cw / 2 - this.cx * this.zoom), dpr * (this.ch / 2 - this.cy * this.zoom));

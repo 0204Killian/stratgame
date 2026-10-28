@@ -1,7 +1,7 @@
 // AI army orders. Each army re-plans once a week, staggered across the days so big maps don't stutter.
 // Searches are limited to nearby provinces; armies with nothing in range head home.
-import { S, quality, garrison, warsOf, enemyIn } from './core.js';
-import { edges, canEnter, orderMove, siegeTarget, canColonise, mor, MORALE } from './military.js';
+import { S, D, quality, garrison, warsOf, enemyIn } from './core.js';
+import { edges, canEnter, orderMove, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff } from './military.js';
 import { provValue } from './diplomacy.js';
 
 const MAX_DEPTH = 12;
@@ -37,10 +37,10 @@ export function aiArmies() {
       if (best != null) orderMove(a, best); continue;
     }
     if (ws.length) {
-      const myStr = a.troops * quality(n) * (.25 + .75 * mor(a));
+      const myStr = a.troops * quality(n) * (.25 + .75 * mor(a)) * mixEff(mixOf(a));
       // enemy strength per province, computed once per nation this day
       let es = strength.get(n.id);
-      if (!es) { es = new Map(); for (const e of S.armies) if (enemies.has(e.nat) && e.prog === 0) es.set(e.prov, (es.get(e.prov) || 0) + e.troops * quality(S.nations[e.nat]) * (.25 + .75 * mor(e))); strength.set(n.id, es); }
+      if (!es) { es = new Map(); for (const e of S.armies) if (enemies.has(e.nat) && e.prog === 0) es.set(e.prov, (es.get(e.prov) || 0) + e.troops * quality(S.nations[e.nat]) * (.25 + .75 * mor(e)) * mixEff(mixOf(e))); strength.set(n.id, es); }
       for (const [pid, d] of dist) {
         const p = S.P[pid], danger = es.get(pid) || 0;
         let v = -1e9;
@@ -55,7 +55,7 @@ export function aiArmies() {
       for (const [pid, d] of dist) {
         const p = S.P[pid];
         if (p.owner != null || d > 6 || a.troops < garrison(p) * 1.5 || !canColonise(n.id, p)) continue;
-        const v = 30 - d * 5 + p.pop * 3; if (v > bv) { bv = v; best = pid; }
+        const v = 30 - d * 5 + p.pop * 3 + (D.biomes[p.biome].y.farm > 0 ? 12 : 0); if (v > bv) { bv = v; best = pid; }
       }
     }
     if (best == null && a.prov !== n.cap && S.P[a.prov].owner !== n.id) best = n.cap;

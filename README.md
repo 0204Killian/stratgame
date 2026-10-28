@@ -6,18 +6,26 @@ A real-time grand strategy game. You spin your nation on a wheel, then expand, t
 - **Windows:** unzip `WheelOfNations-<version>-win-x64.zip` and run `Wheel of Nations.exe`. Saves and settings are kept in `%APPDATA%\Wheel of Nations\`.
 - **Develop:** install Node.js 20+, then `npm install` and `npm start`.
 
+## Economy and armies
+- Every province has a biome (plains, forest, hills, mountains, desert). Stone can be quarried anywhere; farms and forestry are not possible in deserts or mountains.
+- Goods sit in one national stockpile. Farms grow wheat or fiber, forestry cuts wood, quarries cut stone. All three need stone tools from toolsmiths, or they work at half speed.
+- Bakeries turn wheat into bread, burning wood. People eat one bread a week; hungry provinces shrink, and subsistence farming covers only part of the gap.
+- Buildings employ the province's own workers. Construction costs wood and stone and needs free workers as builders. You can turn each building's work rate down to free workers.
+- Armies are swordsmen (front row) and spearmen (back row); each soldier needs a sword or a spear. Battles run day by day; 1:1 fills both rows.
+
 ## Project layout
 ```
 main.js, preload.js   Electron shell: window, app:// file protocol, save files on disk
 src/index.html        Page skeleton
 src/styles.css        All styling
-src/data/*.json       Game content and balance (governments, techs, buildings, resources, names...)
+src/data/*.json       Game content and balance (governments, techs, biomes, goods, buildings, names...)
 src/sim/              The simulation. Plain JavaScript with no DOM access, deterministic with a seeded RNG.
   core.js             State, data, RNG, and read-only queries
-  world.js            Map generation (grid of land cells grouped into provinces)
+  world.js            Map generation (grid of land cells grouped into provinces, biomes)
   nation.js           Creating nations
-  military.js         Armies, movement, battles, sieges, nukes
-  economy.js          Monthly economy, growth, construction, research, revolts
+  military.js         Armies (swordsmen/spearmen), movement, day-by-day battles, sieges, nukes
+  industry.js         Goods, workforce, buildings, weekly production, construction, AI economy planner
+  economy.js          Income, population and GDP growth, recruitment, reinforcement, research, revolts
   diplomacy.js        Wars, war score, peace deals, alliances, AI war declarations
   ai.js               AI army movement
   events.js           Decision events and resolving decisions

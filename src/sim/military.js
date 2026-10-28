@@ -1,16 +1,19 @@
 // Armies, movement, battles, sieges, nuclear strikes.
 import { S, D, R, rnd, clamp, memo, YEAR, N, PN, log, emit, has, atWar, allied, warBetween, quality, garrison, isPort, unlockMedal } from './core.js';
 
-export function makeArmy(n, provId, troops) {
-  const a = { id: S.nextArmyId++, nat: n.id, troops: Math.max(0, troops), prov: provId, path: [], prog: 0, hop: 6, retreat: false, mor: MORALE.recruit };
+// An army is a number of troops and a mix: the share that are swordsmen (front row); the rest are spearmen (back row).
+export function makeArmy(n, provId, troops, mix = .5) {
+  const a = { id: S.nextArmyId++, nat: n.id, troops: Math.max(0, troops), mix, prov: provId, path: [], prog: 0, hop: 6, retreat: false, mor: MORALE.recruit };
   S.armies.push(a); return a;
 }
+export const mixOf = a => a.mix ?? .5;
+const bio = p => D.biomes[p.biome] || D.biomes.plains;
 // ---------- Morale (EU4-style) ----------
 export const MORALE = { recruit: .5, siegeMin: .5, broken: .25, regenHome: .25, regenAway: .10, winLoss: [.15, .35], loseTo: [0, .1] };
 export const mor = a => a.mor ?? 1;
 // Add troops to an army: fresh recruits dilute its morale.
-export function reinforce(a, troops, m = MORALE.recruit) {
-  const t = a.troops + troops; if (t > 0) a.mor = (mor(a) * a.troops + m * troops) / t; a.troops = t;
+export function reinforce(a, troops, m = MORALE.recruit, mx = .5) {
+  const t = a.troops + troops; if (t > 0) { a.mor = (mor(a) * a.troops + m * troops) / t; a.mix = (mixOf(a) * a.troops + mx * troops) / t; } a.troops = t;
 }
 export function canEnter(nid, p) {
   if (p.owner == null) return true;
@@ -95,7 +98,7 @@ export function findPath(n, from, to) {
 }
 export function hopDays(n, a, to) {
   const from = S.P[a.prov], dest = S.P[to];
-  let d = 6; if (dest.res === 'mount') d += 4;
+  let d = 6 + bio(dest).move;
   if (!from.landN.includes(to)) { const cells = Math.hypot(from.cx - dest.cx, from.cy - dest.cy) / (S.CS || 8); d = Math.max(d * 1.6, 4 + cells / 4); }
   if (has(n, 'logistics')) d *= .8; if (has(n, 'blitz')) d *= .5;
   return Math.max(1.5, d);
@@ -126,10 +129,10 @@ export function dailyMilitary() {
     const nats = [...new Set(list.filter(a => !a.retreat).map(a => a.nat))];
     for (let i = 0; i < nats.length; i++) for (let j = i + 1; j < nats.length; j++) if (atWar(nats[i], nats[j])) {
       const p = S.P[pid], def = (p.ctrl === nats[j] || p.owner === nats[j]) ? nats[j] : nats[i], att = def === nats[i] ? nats[j] : nats[i];
-      S.battles.push({ prov: pid, a: att, b: def, days: 4 }); return;
+      S.battles.push(newBattle(pid, att, def)); return;
     }
   });
-  for (const b of S.battles.slice()) if (--b.days <= 0) { S.battles = S.battles.filter(x => x !== b); resolveBattle(b.prov, b.a, b.b); }
+  for (const b of S.battles.slice()) battleDay(b);
   byProv.forEach((list, pid) => {
     const p = S.P[pid]; if (inBattle(pid)) return;
     const ok = list.filter(a => !a.path.length && !a.retreat && mor(a) >= MORALE.siegeMin && siegeTarget(a.nat, p) && S.armies.includes(a));
@@ -138,7 +141,7 @@ export function dailyMilitary() {
     if (tr < garrison(p)) { if (p.siege && p.siege.nat === nat) p.siege = null; return; }   // too small to besiege
     if (!p.siege || p.siege.nat !== nat) p.siege = { nat, prog: 0 };
     const n = S.nations[nat], defender = p.ctrl != null ? S.nations[p.ctrl] : null;
-    let days = 26 * (p.res === 'mount' ? 1.6 : 1) * (has(n, 'artillery') ? .6 : 1) * (1 + .35 * p.b.fort);
+    let days = 26 * (bio(p).siege || 1) * (has(n, 'artillery') ? .6 : 1) * (1 + .35 * p.b.fort);
     if (defender && defender.trait === 'mount') days *= 1.3;
     if (defender && has(defender, 'radar')) days *= 1.4;
     p.siege.prog += Math.min(1.4, tr / (garrison(p) * 3)) / days;
@@ -173,29 +176,81 @@ function completeSiege(p, nid) {
   const owner = S.nations[p.owner], isCap = p.id === owner.cap;
   log(`${N(n)} occupies ${PN(p)}${isCap ? `, the capital of ${N(owner)}` : ''}.`, null, isCap ? 6 : 3);
 }
-function resolveBattle(pid, attId, defId) {
-  const p = S.P[pid];
-  const A = S.armies.filter(a => a.prov === pid && a.nat === attId && a.prog === 0), Dd = S.armies.filter(a => a.prov === pid && a.nat === defId && a.prog === 0);
-  if (!A.length || !Dd.length) return;
-  const at = S.nations[attId], de = S.nations[defId];
-  const ta = A.reduce((s, a) => s + a.troops, 0), td = Dd.reduce((s, a) => s + a.troops, 0);
-  const avgMor = L => L.reduce((s, a) => s + mor(a) * a.troops, 0) / Math.max(1, L.reduce((s, a) => s + a.troops, 0));
-  const ma = avgMor(A), md = avgMor(Dd), mf = m => .25 + .75 * m;   // a broken army fights at a quarter strength
-  const sa = ta * quality(at) * mf(ma) * rnd(.8, 1.2);
-  const sd = td * quality(de) * mf(md) * rnd(.8, 1.2) * (p.res === 'mount' ? 1.25 : 1) * (has(de, 'radar') && p.owner === defId ? 1.2 : 1) * (p.owner === defId ? 1 + .08 * p.b.fort : 1);
-  const aWin = sa > sd, Wn = aWin ? at : de, Ln = aWin ? de : at, WA = aWin ? A : Dd, LA = aWin ? Dd : A, ratio = Math.min(sa, sd) / Math.max(sa, sd);
-  const wl = rnd(.06, .14) * (.4 + ratio), ll = rnd(.3, .45);
-  let wLoss = 0, lLoss = 0;
-  WA.forEach(a => { const l = a.troops * wl; a.troops -= l; wLoss += l; a.mor = Math.max(0, mor(a) - rnd(...MORALE.winLoss) * (.5 + ratio)); });
-  LA.forEach(a => { const l = a.troops * ll; a.troops -= l; lLoss += l; });
-  const loserBroken = (aWin ? md : ma) < MORALE.broken;
-  LA.forEach(a => { a.mor = rnd(...MORALE.loseTo); });
-  const w = warBetween(attId, defId);
+// ---------- Battles ----------
+// Battles run day by day. Each side forms a front row and a back row of equal size; the front row is half the army,
+// capped by the battlefield width: the bigger army can overlap the smaller one two to one, less in forests, hills and
+// mountains. Anyone left over waits in reserve. Swordsmen take the front, spearmen the back; whoever is left over fills the other row badly.
+// 1 swordsman : 1 spearman fills both rows with the right troops. Damage hits the front row hardest.
+export const BATTLE = { pow: { fSw: 1, fSp: .6, bSp: .8, bSw: .2 }, cas: .03, frontShare: .75, spearFrontHit: 1.3, morPerCas: 4, morDaily: .01, beaten: .05, maxDays: 20, pursuit: .1 };
+export function formation(N, mix, width) {
+  const sw = N * mix, sp = N - sw, F = Math.min(N / 2, width ?? N / 2);
+  const fSw = Math.min(sw, F), fSp = Math.min(sp, F - fSw), bSp = Math.min(sp - fSp, F), bSw = Math.min(sw - fSw, F - bSp);
+  return { F, fSw, fSp, bSp, bSw, res: Math.max(0, N - fSw - fSp - bSp - bSw) };
+}
+export const formPower = f => f.fSw * BATTLE.pow.fSw + f.fSp * BATTLE.pow.fSp + f.bSp * BATTLE.pow.bSp + f.bSw * BATTLE.pow.bSw;
+// How well a mix fights compared with the ideal 1:1 (1 = ideal).
+export const mixEff = mix => formPower(formation(1, mix)) / formPower(formation(1, .5));
+const sideOf = (pid, nat) => S.armies.filter(a => a.prov === pid && a.nat === nat && a.prog === 0 && !a.retreat);
+function sideStats(L) {
+  const N = L.reduce((s, a) => s + a.troops, 0);
+  return { L, N, mix: N ? L.reduce((s, a) => s + a.troops * mixOf(a), 0) / N : .5, mor: N ? L.reduce((s, a) => s + a.troops * mor(a), 0) / N : 0 };
+}
+function newBattle(pid, att, def) {
+  const A = sideStats(sideOf(pid, att)), Dd = sideStats(sideOf(pid, def));
+  return { prov: pid, a: att, b: def, day: 0, start: S.day, cas: { a: 0, b: 0 }, m0: { a: A.mor, b: Dd.mor }, n0: { a: A.N, b: Dd.N } };
+}
+// Live view of a battle for the UI: both sides' rows, morale and losses so far.
+export function battleView(b) {
+  const p = S.P[b.prov], A = sideStats(sideOf(b.prov, b.a)), Dd = sideStats(sideOf(b.prov, b.b)), width = Math.min(A.N, Dd.N) * bio(p).width;
+  return { b, width, a: { ...A, f: formation(A.N, A.mix, width) }, d: { ...Dd, f: formation(Dd.N, Dd.mix, width) } };
+}
+// Take casualties: most land on the front row (spearmen in front suffer more), the rest on the back row.
+function takeLosses(side, f, cas) {
+  const front = f.fSw + f.fSp, back = f.bSp + f.bSw;
+  const fc = front > 0 ? cas * (back > 0 ? BATTLE.frontShare : 1) : 0, bc = cas - fc;
+  const wF = f.fSw + f.fSp * BATTLE.spearFrontHit;
+  let swL = wF > 0 ? fc * f.fSw / wF : 0, spL = wF > 0 ? fc * f.fSp * BATTLE.spearFrontHit / wF : 0;
+  if (back > 0) { swL += bc * f.bSw / back; spL += bc * f.bSp / back; }
+  const SW = side.N * side.mix, SP = side.N - SW;
+  swL = Math.min(swL, SW); spL = Math.min(spL, SP);
+  for (const a of side.L) {
+    const aSw = a.troops * mixOf(a), aSp = a.troops - aSw;
+    const nSw = aSw - (SW > 0 ? swL * aSw / SW : 0), nSp = aSp - (SP > 0 ? spL * aSp / SP : 0);
+    a.troops = Math.max(0, nSw + nSp); a.mix = a.troops > 0 ? nSw / a.troops : .5;
+  }
+  return swL + spL;
+}
+function battleDay(b) {
+  const p = S.P[b.prov], at = S.nations[b.a], de = S.nations[b.b];
+  const A = sideStats(sideOf(b.prov, b.a)), Dd = sideStats(sideOf(b.prov, b.b));
+  if (!A.N || !Dd.N) { S.battles = S.battles.filter(x => x !== b); return; }
+  b.day++;
+  const width = Math.min(A.N, Dd.N) * bio(p).width, fa = formation(A.N, A.mix, width), fd = formation(Dd.N, Dd.mix, width);
+  const mf = m => .25 + .75 * m;   // a broken army fights at a quarter strength
+  const defB = bio(p).def * (p.owner === b.b ? (1 + .08 * p.b.fort) * (has(de, 'radar') ? 1.2 : 1) : 1);
+  const powA = formPower(fa) * quality(at) * mf(A.mor) * rnd(.85, 1.15);
+  const powD = formPower(fd) * quality(de) * mf(Dd.mor) * rnd(.85, 1.15) * defB;
+  const casA = takeLosses(A, fa, powD * BATTLE.cas), casD = takeLosses(Dd, fd, powA * BATTLE.cas);
+  b.cas.a += casA; b.cas.b += casD;
+  const hit = (side, cas) => { const loss = cas / Math.max(1, side.N) * BATTLE.morPerCas + BATTLE.morDaily; for (const a of side.L) a.mor = Math.max(0, mor(a) - loss); return Math.max(0, side.mor - loss); };
+  const mA = hit(A, casA), mD = hit(Dd, casD);
+  const aOut = mA <= BATTLE.beaten || A.N - casA < 300, dOut = mD <= BATTLE.beaten || Dd.N - casD < 300;
+  if (!aOut && !dOut && b.day < BATTLE.maxDays) return;
+  const attWins = aOut === dOut ? mA > mD : dOut;
+  endBattle(b, attWins ? at : de, attWins ? de : at, attWins ? Dd : A);
+}
+function endBattle(b, Wn, Ln, LS) {
+  const p = S.P[b.prov]; S.battles = S.battles.filter(x => x !== b);
+  const loserBroken = (Ln.id === b.a ? b.m0.a : b.m0.b) < MORALE.broken;
+  let pursuit = 0;
+  for (const a of LS.L) { const l = a.troops * BATTLE.pursuit; a.troops -= l; pursuit += l; a.mor = Math.min(mor(a), rnd(...MORALE.loseTo)); }
+  const lLoss = (Ln.id === b.a ? b.cas.a : b.cas.b) + pursuit, wLoss = Wn.id === b.a ? b.cas.a : b.cas.b;
+  const w = warBetween(b.a, b.b);
   if (w) { const side = w.a === Wn.id ? 'a' : 'b'; w.bs[side] = Math.min(40, w.bs[side] + clamp(Math.round(lLoss / (lLoss + wLoss) * 12), 3, 12)); }
-  emit('battle', { prov: pid, you: Wn.you || Ln.you });
-  log(`Battle of ${PN(p)}: ${N(Wn)} defeats ${N(Ln)}. [[${Math.round(wLoss + lLoss)} dead]]`, null, (Wn.you || Ln.you) ? 5 : 3);
-  if (loserBroken) { LA.forEach(a => { a.troops = 0; }); log(`${N(Ln)}'s army at ${PN(p)} was already broken and is destroyed.`, null, (Wn.you || Ln.you) ? 4 : 2); }
-  else LA.forEach(a => retreat(a));
+  emit('battle', { prov: b.prov, you: Wn.you || Ln.you, b, winner: Wn.id });
+  log(`Battle of ${PN(p)} (${b.day} day${b.day > 1 ? 's' : ''}): ${N(Wn)} defeats ${N(Ln)}. [[${Math.round(wLoss)} vs ${Math.round(lLoss)} dead]]`, null, (Wn.you || Ln.you) ? 5 : 3);
+  if (loserBroken) { LS.L.forEach(a => { a.troops = 0; }); log(`${N(Ln)}'s army at ${PN(p)} was already broken and is destroyed.`, null, (Wn.you || Ln.you) ? 4 : 2); }
+  else LS.L.forEach(a => retreat(a));
   S.armies = S.armies.filter(a => a.troops >= 300);
 }
 function retreat(a) {

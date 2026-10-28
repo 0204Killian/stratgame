@@ -1,0 +1,10 @@
+{
+ "wheat": { "n": "Wheat", "c": "#e3c35a" },
+ "fiber": { "n": "Fiber", "c": "#c9b8e8" },
+ "wood": { "n": "Wood", "c": "#b07d4f" },
+ "stone": { "n": "Stone", "c": "#b8b6ad" },
+ "tools": { "n": "Stone tools", "c": "#8fb3c9" },
+ "bread": { "n": "Bread", "c": "#f0a35a" },
+ "swords": { "n": "Swords", "c": "#e07a6a" },
+ "spears": { "n": "Spears", "c": "#d6cf6a" }
+}

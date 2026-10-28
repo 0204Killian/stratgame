@@ -9,11 +9,11 @@ import { platform } from './platform.js';
 import { sound, sfx, unlockAudio } from './audio.js';
 import { num, kfmt, fmtGdp, dateStr, esc, chip, fmtMsg, plainMsg } from './format.js';
 
-const DATA_FILES = ['balance', 'governments', 'setup', 'traits', 'leaders', 'resources', 'buildings', 'techs', 'goals', 'difficulties', 'medals', 'names'];
+const DATA_FILES = ['balance', 'governments', 'setup', 'traits', 'leaders', 'biomes', 'goods', 'buildings', 'techs', 'goals', 'difficulties', 'medals', 'names'];
 const SPEED_MS = [0, 500, 240, 110, 45, 12];
 const $ = id => document.getElementById(id);
 
-const ui = { tab: 'sel', sel: null, confirm: null, peaceSel: {}, recProv: null, hoverProv: -1, paused: true, speed: 2, hold: false, forceBase: true, setup: null, lastHtml: '', econBuilt: false, keys: new Set() };
+const ui = { mapMode: 'political', tab: 'sel', sel: null, confirm: null, peaceSel: {}, recProv: null, hoverProv: -1, paused: true, speed: 2, hold: false, forceBase: true, setup: null, lastHtml: '', econBuilt: false, keys: new Set() };
 let map, setup, profile, acc = 0, lastT = 0, lastPanel = 0, lastYear = 0;
 
 const defaultProfile = () => ({ settings: { sound: true, volume: .7, autosave: 'yearly', uiScale: 1, confirmWar: true, edgePan: false }, records: { games: 0, wins: 0, best: 0, medals: {} } });
@@ -106,7 +106,7 @@ function loop(t) {
     keyPan(dt);
     if (t - lastPanel > 300) { lastPanel = t; renderTopbar(); if (!ui.hold) refreshPanel(); }
   } else keyPan(dt);
-  map.draw(t, { selProv: ui.sel && ui.sel.kind === 'prov' ? ui.sel.id : null, selArmies: ui.sel && ui.sel.kind === 'armies' ? new Set(ui.sel.ids) : null, hoverProv: ui.hoverProv, setup: ui.setup, get forceBase() { return ui.forceBase; }, set forceBase(v) { ui.forceBase = v; } });
+  map.draw(t, { selProv: ui.sel && ui.sel.kind === 'prov' ? ui.sel.id : null, selArmies: ui.sel && ui.sel.kind === 'armies' ? new Set(ui.sel.ids) : null, hoverProv: ui.hoverProv, setup: ui.setup, mapMode: ui.mapMode, get forceBase() { return ui.forceBase; }, set forceBase(v) { ui.forceBase = v; } });
   requestAnimationFrame(loop);
 }
 function keyPan(dt) {
@@ -115,6 +115,8 @@ function keyPan(dt) {
   if (k.has('ArrowUp') || k.has('KeyW')) dy += sp; if (k.has('ArrowDown') || k.has('KeyS')) dy -= sp;
   if (dx || dy) map.pan(dx, dy);
 }
+
+function toggleTerrain() { ui.mapMode = ui.mapMode === 'terrain' ? 'political' : 'terrain'; $('zTerrain').classList.toggle('primary', ui.mapMode === 'terrain'); }
 
 // ---------- top bar ----------
 function renderSpeed() {
@@ -134,6 +136,7 @@ function renderTopbar() {
   set('tIncome', (m.net >= 0 ? '+' : '') + fmtGdp(m.net), m.net < 0);
   set('tArmy', `${kfmt(tr)} / ${kfmt(fl)}`, tr > fl);
   set('tManpower', kfmt(p.manpower));
+  set('tFood', Math.round((p.fed ?? 1) * 100) + '% fed', (p.fed ?? 1) < .95);
   const ready = S.techOffers.length && p.rp >= G.techCost(p);
   set('tResearch', ready ? 'Ready!' : `${Math.floor(p.rp / G.techCost(p) * 100)}%`);
   $('tResearch').classList.toggle('pos', !!ready);
@@ -201,9 +204,11 @@ function onPanelClick(e) {
     case 'merge': { const r = result(G.cmdMerge(arg.split(',').map(Number))); if (r.ok) select({ kind: 'armies', ids: [r.army] }); break; }
     case 'dis25': result(G.cmdDischarge(+arg, .25)); break;
     case 'disband': if (confirm2('disband:' + arg)) { result(G.cmdDischarge(+arg, 1)); select(null); } break;
-    case 'build': { const [pid, k] = arg.split(':'); result(G.cmdBuild(+pid, k), ['Construction started', `${D.buildings[k].n} · ${S.P[+pid].name}`, `Ready ${dateStr(S.day + D.balance.buildDays)}`]); break; }
+    case 'build': { const [pid, k, lv] = arg.split(':'); result(G.cmdBuild(+pid, k, +lv || 1), ['Construction started', `${D.buildings[k].n}${+lv > 1 ? ' ×' + lv : ''} · ${S.P[+pid].name}`, `About ${D.buildings[k].weeks} weeks with enough builders`]); break; }
+    case 'cancelBuild': result(G.cmdCancelBuild(+arg)); break;
+    case 'crop': { const [pid, c] = arg.split(':'); result(G.cmdSetCrop(+pid, c)); break; }
     case 'recHere': ui.recProv = +arg; setTab('econ'); setTimeout(() => $('rTroops')?.scrollIntoView({ block: 'center' }), 0); break;
-    case 'recruit': { const r = recruitInfo(ui); if (!r.ok) return; const res = result(G.cmdRecruit(r.prov, r.tr), ['Army raised', `${num(r.tr)} soldiers`, `In ${S.P[r.prov].name}`]); if (res.ok) { select({ kind: 'armies', ids: [res.army] }, true); } break; }
+    case 'recruit': { const r = recruitInfo(ui); if (!r.ok) return; const res = result(G.cmdRecruit(r.prov, r.sw, r.sp), ['Army raised', `${num(r.sw)} swordsmen · ${num(r.sp)} spearmen`, `In ${S.P[r.prov].name}`]); if (res.ok) { select({ kind: 'armies', ids: [res.army] }, true); } break; }
     case 'dow': if (!profile.settings.confirmWar || confirm2('dow:' + arg)) result(G.cmdDeclareWar(+arg)); break;
     case 'ally': { const r = G.cmdProposeAlliance(+arg); if (r.ok) toast(r.accepted ? 'Alliance signed' : 'Refused', S.nations[+arg].name, r.accepted ? 'They will defend you, and call you to their wars.' : 'They turned you down. Try again in a year.', r.accepted ? '' : 'bad'); else result(r); refreshPanel(true); break; }
     case 'unally': result(G.cmdBreakAlliance(+arg)); break;
@@ -226,6 +231,8 @@ function onPanelInput(e) {
   else if (t.id === 'sCon') G.cmdPolicy({ milPct: +t.value });
   else if (t.id === 'sMnt') G.cmdPolicy({ maint: +t.value / 100 });
   else if (t.id === 'rProv') ui.recProv = +t.value;
+  else if (t.id === 'rMix' || t.id === 'rTroops') { /* read live by recruitInfo */ }
+  else if (t.dataset.act === 'pset' && e.type === 'change') { const [pid, k] = t.dataset.arg.split(':'); result(G.cmdSetProduction(+pid, k, +t.value)); return; }
   else if (t.dataset.act === 'pterm' && e.type === 'change') {
     const [w, k, v] = t.dataset.arg.split(':'), sel = ui.peaceSel[+w]; if (!sel) return;
     if (k === 'prov') { const pid = +v; if (t.checked) { if (!sel.provs.includes(pid)) sel.provs.push(pid); } else sel.provs = sel.provs.filter(x => x !== pid); }
@@ -267,6 +274,7 @@ function bindInput() {
   $('zIn').onclick = () => map.zoomAt(map.cw / 2, map.ch / 2, 1.4);
   $('zOut').onclick = () => map.zoomAt(map.cw / 2, map.ch / 2, 1 / 1.4);
   $('zFit').onclick = () => map.fit();
+  $('zTerrain').onclick = toggleTerrain;
   $('pause').onclick = togglePause;
   document.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => { ui.speed = +b.dataset.sp; if (ui.paused && S.phase === 'game' && !S.over) ui.paused = false; unlockAudio(); renderSpeed(); });
   $('btnSave').onclick = saveDialog; $('btnLoad').onclick = loadDialog; $('btnMenu').onclick = menuDialog;
@@ -282,7 +290,7 @@ function hover(sx, sy) {
   if (a) { const n = S.nations[a.nat], tr = hit.ids.reduce((s, id) => s + (S.armies.find(x => x.id === id)?.troops || 0), 0); html = `${chip(n)}<b>${esc(n.name)}</b><br>${num(tr)} troops${hit.ids.length > 1 ? ` in ${hit.ids.length} armies` : ''}`; }
   else if (pid >= 0) {
     const p = S.P[pid], o = p.owner != null ? S.nations[p.owner] : null;
-    html = `<b>${esc(p.name)}</b><br>${o ? chip(o) + esc(o.name) : 'Free province'}${p.ctrl != null && p.ctrl !== p.owner ? ` · occupied by ${esc(S.nations[p.ctrl].name)}` : ''}<br><span class="sub">${D.resources[p.res].n} · ${kfmt(p.pop * 1e6)} people</span>`;
+    html = `<b>${esc(p.name)}</b><br>${o ? chip(o) + esc(o.name) : 'Free province'}${p.ctrl != null && p.ctrl !== p.owner ? ` · occupied by ${esc(S.nations[p.ctrl].name)}` : ''}<br><span class="sub">${D.biomes[p.biome].n}${p.res === 'port' ? ' · harbour' : ''} · ${kfmt(p.pop * 1e6)} people</span>${S.battles.some(b => b.prov === pid) ? '<br><span class="neg">Battle here · click for details</span>' : ''}`;
     if (ui.sel && ui.sel.kind === 'armies' && S.phase === 'game') { const own = ui.sel.ids.map(id => S.armies.find(x => x.id === id)).filter(x => x && S.nations[x.nat].you); if (own.length) { const path = G.findPath(S.nations[own[0].nat], own[0].prov, pid); html += `<br><span class="${path ? 'pos' : 'neg'}">${path ? `Right-click to march · ${path.length} province${path.length === 1 ? '' : 's'}` : 'No route'}</span>`; } }
   }
   if (!html) { tip.hidden = true; return; }
@@ -328,6 +336,7 @@ function onKey(e) {
   const d = /^(Digit|Numpad)([1-5])$/.exec(e.code); if (d && S.phase === 'game') { ui.speed = +d[2]; renderSpeed(); return; }
   if (e.code === 'Equal' || e.code === 'NumpadAdd') { map.zoomAt(map.cw / 2, map.ch / 2, 1.25); return; }
   if (e.code === 'Minus' || e.code === 'NumpadSubtract') { map.zoomAt(map.cw / 2, map.ch / 2, .8); return; }
+  if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) { toggleTerrain(); return; }
   if (e.code === 'Home') { const p = G.player(); if (p && S.phase === 'game') { const c = S.P[p.cap]; map.centerOn(c.cx, c.cy); } else map.fit(); return; }
   if (/^(Arrow|Key[WASD])/.test(e.code)) ui.keys.add(e.code);
 }

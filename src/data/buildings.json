@@ -1,27 +1,166 @@
 {
- "factory": {
-  "n": "Factory",
-  "max": 3,
-  "c": "#ff8f6b",
-  "d": "+8% GDP now, +1.2% GDP growth a year per level"
- },
  "farm": {
-  "n": "Farms",
-  "max": 3,
+  "n": "Farm",
+  "kind": "raw",
   "c": "#9ccc54",
-  "d": "+1% population growth a year per level; level 2 stops famine"
+  "jobs": 50000,
+  "tools": 2000,
+  "methods": [
+   {
+    "k": "wheat",
+    "n": "Wheat",
+    "out": {
+     "wheat": 400000
+    }
+   },
+   {
+    "k": "fiber",
+    "n": "Fiber",
+    "out": {
+     "fiber": 250000
+    }
+   }
+  ],
+  "cost": {
+   "wood": 5000
+  },
+  "builders": 20000,
+  "weeks": 8,
+  "d": "Grows wheat or fiber"
+ },
+ "forestry": {
+  "n": "Forestry",
+  "kind": "raw",
+  "c": "#5f9a5a",
+  "jobs": 40000,
+  "tools": 2000,
+  "out": {
+   "wood": 200000
+  },
+  "cost": {},
+  "builders": 15000,
+  "weeks": 6,
+  "d": "Fells timber"
+ },
+ "quarry": {
+  "n": "Quarry",
+  "kind": "raw",
+  "c": "#b8b6ad",
+  "jobs": 40000,
+  "tools": 3000,
+  "out": {
+   "stone": 150000
+  },
+  "cost": {},
+  "builders": 15000,
+  "weeks": 8,
+  "d": "Cuts stone"
+ },
+ "toolsmith": {
+  "n": "Stone toolsmith",
+  "kind": "proc",
+  "c": "#8fb3c9",
+  "jobs": 10000,
+  "in": {
+   "stone": 6000,
+   "wood": 4000
+  },
+  "out": {
+   "tools": 10000
+  },
+  "cost": {
+   "wood": 5000,
+   "stone": 10000
+  },
+  "builders": 10000,
+  "weeks": 6,
+  "d": "Makes the stone tools farms, forestry and quarries work with"
+ },
+ "bakery": {
+  "n": "Bread bakery",
+  "kind": "proc",
+  "c": "#f0a35a",
+  "jobs": 30000,
+  "in": {
+   "wheat": 1000000,
+   "wood": 50000
+  },
+  "out": {
+   "bread": 1000000
+  },
+  "cost": {
+   "wood": 10000,
+   "stone": 20000
+  },
+  "builders": 20000,
+  "weeks": 8,
+  "d": "Bakes wheat into bread, burning wood"
+ },
+ "swordsmith": {
+  "n": "Swordsmith",
+  "kind": "proc",
+  "c": "#e07a6a",
+  "jobs": 10000,
+  "in": {
+   "stone": 4000,
+   "wood": 2000
+  },
+  "out": {
+   "swords": 2000
+  },
+  "cost": {
+   "wood": 5000,
+   "stone": 10000
+  },
+  "builders": 10000,
+  "weeks": 8,
+  "d": "Arms swordsmen, the front row"
+ },
+ "spearsmith": {
+  "n": "Spearsmith",
+  "kind": "proc",
+  "c": "#d6cf6a",
+  "jobs": 10000,
+  "in": {
+   "wood": 3000,
+   "stone": 1000
+  },
+  "out": {
+   "spears": 3000
+  },
+  "cost": {
+   "wood": 5000,
+   "stone": 10000
+  },
+  "builders": 10000,
+  "weeks": 6,
+  "d": "Arms spearmen, the back row"
  },
  "fort": {
   "n": "Fort",
-  "max": 3,
+  "kind": "mil",
   "c": "#d6cfb8",
+  "max": 3,
+  "cost": {
+   "stone": 150000,
+   "wood": 40000
+  },
+  "builders": 40000,
+  "weeks": 16,
   "d": "+50% garrison, slower sieges, +8% defence per level"
  },
  "harbour": {
   "n": "Harbour",
-  "max": 1,
+  "kind": "mil",
   "c": "#5dd6e0",
-  "d": "Acts as a port: armies can cross sea routes",
-  "coast": true
+  "max": 1,
+  "coast": true,
+  "cost": {
+   "wood": 120000,
+   "stone": 40000
+  },
+  "builders": 30000,
+  "weeks": 16,
+  "d": "Acts as a port: armies can cross sea routes"
  }
 }

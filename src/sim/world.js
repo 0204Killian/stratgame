@@ -1,5 +1,6 @@
 // Procedural world: a grid of land cells grouped into provinces. Scales from 48 to ~1,000 provinces.
 import { S, D, R, pick, rnd, shuffle } from './core.js';
+import { nativeEconomy } from './industry.js';
 
 export const CS = 8; // world units per grid cell
 
@@ -36,9 +37,9 @@ export function genWorld(size, nationCount) {
   const cfg = D.balance.mapSizes[size] || D.balance.mapSizes.small;
   const [W, H] = cfg.grid, k = cfg.provinces;
   const nb4 = i => { const x = i % W, y = (i / W) | 0, o = []; if (x > 0) o.push(i - 1); if (x < W - 1) o.push(i + 1); if (y > 0) o.push(i - W); if (y < H - 1) o.push(i + W); return o; };
-  let L, keep;
+  let L, keep, elev;
   for (let attempt = 0; attempt < 6; attempt++) {
-    const f = noiseField(W, H), sorted = Array.from(f).sort((a, b) => a - b), th = sorted[Math.floor(sorted.length * .55)];
+    const f = elev = noiseField(W, H), sorted = Array.from(f).sort((a, b) => a - b), th = sorted[Math.floor(sorted.length * .55)];
     L = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) { const x = i % W, y = (i / W) | 0; L[i] = (f[i] > th && x > 1 && y > 1 && x < W - 2 && y < H - 2) ? 1 : 0; }
     const comp = new Int32Array(W * H).fill(-1), comps = [];
@@ -81,15 +82,26 @@ export function genWorld(size, nationCount) {
   S.land = Array.from(L); S.reg = Array.from(G);
   const names = provinceNames(n);
   const P = [];
-  for (let i = 0; i < n; i++) P.push({ id: i, name: names[i], cells: [], owner: null, ctrl: null, landN: [], seaN: [], pop: 0, gdp: 0, devUntil: -1, siege: null, b: { factory: 0, farm: 0, fort: 0, harbour: 0 }, build: null });
+  const b0 = () => Object.fromEntries(Object.keys(D.buildings).map(k => [k, 0]));
+  for (let i = 0; i < n; i++) P.push({ id: i, name: names[i], cells: [], owner: null, ctrl: null, landN: [], seaN: [], pop: 0, gdp: 0, devUntil: -1, siege: null, b: b0(), set: {}, crop: 'wheat', build: null, biome: 'plains', res: null });
   const coastal = new Uint8Array(n), landSets = P.map(() => new Set());
   for (let i = 0; i < W * H; i++) {
     const p = S.reg[i]; if (p < 0) continue; P[p].cells.push(i);
     for (const j of nb4(i)) { const q = S.reg[j]; if (q >= 0 && q !== p) landSets[p].add(q); if (!S.land[j]) coastal[p] = 1; }
   }
-  const bag = []; while (bag.length < n) bag.push(...shuffle(Object.keys(D.resources)));
+  // Biomes: elevation from the landmass noise, moisture from a second field. Each province takes its cells' majority.
+  const landIdx = []; for (let i = 0; i < W * H; i++) if (L[i] && G[i] >= 0) landIdx.push(i);
+  const rankOf = vals => { const o = landIdx.slice().sort((a, b) => vals[a] - vals[b]), r = new Float32Array(W * H); o.forEach((c, k) => r[c] = k / o.length); return r; };
+  const eR = rankOf(elev), mR = rankOf(noiseField(W, H)), votes = P.map(() => ({}));
+  for (const i of landIdx) {
+    const e = eR[i], m = mR[i];
+    const b = e >= .9 ? 'mountains' : m < .17 ? 'desert' : e >= .72 ? 'hills' : m > .6 ? 'forest' : 'plains';
+    const v = votes[G[i]]; v[b] = (v[b] || 0) + 1;
+  }
   P.forEach((p, i) => {
-    p.landN = [...landSets[i]]; p.res = bag[i]; p.coastal = !!coastal[i];
+    p.landN = [...landSets[i]]; p.coastal = !!coastal[i];
+    p.biome = Object.entries(votes[i]).sort((a, b) => b[1] - a[1])[0]?.[0] || 'plains';
+    p.res = p.coastal && R() < .3 ? 'port' : null;   // natural harbour
     let sx = 0, sy = 0; p.cells.forEach(c => { sx += c % W; sy += (c / W) | 0; }); sx /= p.cells.length; sy /= p.cells.length;
     let bc = p.cells[0], bd = 1e9; p.cells.forEach(c => { const d = (c % W - sx) ** 2 + (((c / W) | 0) - sy) ** 2; if (d < bd) { bd = d; bc = c; } });
     p.cx = bc % W * CS + CS / 2; p.cy = ((bc / W) | 0) * CS + CS / 2;
@@ -113,13 +125,15 @@ export function genWorld(size, nationCount) {
     for (const o of found) if (!p.landN.includes(o) && !p.seaN.includes(o)) { p.seaN.push(o); P[o].seaN.push(p.id); }
   }
   S.P = P;
+  for (const p of P) nativeEconomy(p);
   // Starting areas: capitals spread far apart, each with up to two neighbouring provinces.
   const caps = [], cd = new Float64Array(n).fill(1e18);
-  const first = pick(P.filter(p => p.landN.length >= 2)); caps.push(first.id);
+  const cand = P.filter(p => p.landN.length >= 2), farmable = cand.filter(p => D.biomes[p.biome].y.farm > 0);
+  const first = pick(farmable.length ? farmable : cand.length ? cand : P); caps.push(first.id);
   const updC = c => { for (const p of P) { const d = (p.cx - P[c].cx) ** 2 + (p.cy - P[c].cy) ** 2; if (d < cd[p.id]) cd[p.id] = d; } }; updC(first.id);
   while (caps.length < nationCount) {
     let bi = -1, bv = -1;
-    for (const p of P) { if (caps.includes(p.id)) continue; const v = cd[p.id] * rnd(.85, 1) * (p.landN.length >= 2 ? 1 : .3); if (v > bv) { bv = v; bi = p.id; } }
+    for (const p of P) { if (caps.includes(p.id)) continue; const v = cd[p.id] * rnd(.85, 1) * (p.landN.length >= 2 ? 1 : .3) * (D.biomes[p.biome].y.farm > 0 ? 1 : .2); if (v > bv) { bv = v; bi = p.id; } }
     caps.push(bi); updC(bi);
   }
   const taken = new Set(caps); S.slots = caps.map(c => [c]);
