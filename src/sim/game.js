@@ -12,6 +12,7 @@ import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
 export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays, legDays, etaDays, routeDays } from './military.js';
+export { goodsOutlook, producerOf } from './industry.js';
 export { GOODS, ECON, workforce, rawWorkforce, draftShare, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
@@ -45,6 +46,7 @@ export function foundNation(draft, slotIdx, you) { return createNation(draft, S.
 export function startGame() {
   S.phase = 'game'; S.day = 0;
   const byOwner = provincesByOwner(); for (const n of S.nations) weeklyProduction(n, byOwner.get(n.id) || []);   // first week's figures are ready at once
+  for (const n of S.nations) n.startGdp = gdpOf(n);   // GDP now comes from production
   log(`${S.nations.length} tribes settle the land. ${S.P.filter(q => q.owner == null).length} tiles lie unclaimed.`, 'big', 0);
 }
 

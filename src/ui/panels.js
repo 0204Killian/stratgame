@@ -144,6 +144,7 @@ function tabProvince(ui) {
 export function buildEcon() {
   return `<h2>Tribe</h2>
   <div class="budget">
+    <div class="brow"><span>GDP (value of what your people make)</span><b id="eGdp"></b></div>
     <div class="brow"><span>Treasury</span><b id="eTreas"></b></div>
     <div class="brow"><span>Taxes</span><b id="eInc" class="pos"></b></div>
     <div class="brow"><span>Army upkeep</span><b id="eUp" class="neg"></b></div>
@@ -184,14 +185,14 @@ export function updateEcon(ui) {
   const p = G.player(); if (!p || !document.getElementById('eTreas')) return;
   const m = G.monthlyIncome(p), fl = G.forceLimit(p), $ = id => document.getElementById(id);
   const set = (id, t, cls) => { const e = $(id); if (!e) return; if (e.textContent !== t) e.textContent = t; if (cls !== undefined) e.className = cls; };
-  set('eTreas', fmtGdp(p.treasury), p.treasury < 0 ? 'neg' : '');
+  set('eTreas', fmtGdp(p.treasury), p.treasury < 0 ? 'neg' : ''); set('eGdp', fmtGdp(G.gdpOf(p)) + ' a year');
   set('eInc', '+' + fmtGdp(m.inc)); set('eUp', '−' + fmtGdp(m.up));
   set('eNet', (m.net >= 0 ? '+' : '') + fmtGdp(m.net), m.net < 0 ? 'neg' : 'pos');
   const fc = p.treasury + m.net * 12; set('eFc', fmtGdp(fc), fc < 0 ? 'neg' : '');
   set('eFL', num(fl)); set('eArms', num(G.troopsOf(p)), G.troopsOf(p) > fl ? 'neg' : ''); set('eMP', `${num(p.manpower)} · +${kfmt(fl * .025)}/mo`);
   const growth = -(p.tax - .15) * .012 * 12 * 100;
   set('vTax', Math.round(p.tax * 100) + '%');
-  set('hTax', `${fmtGdp(m.inc)} a month. GDP growth ${growth >= 0 ? '+' : ''}${growth.toFixed(1)} pts a year${p.tax > .2 ? '. Above 20% causes unrest and revolutions' : ''}.`);
+  set('hTax', `${fmtGdp(m.inc)} a month, a share of GDP. Grow GDP by making more, and more valuable, goods${p.tax > .2 ? '. Above 20% causes unrest and revolutions' : ''}.`);
   set('vCon', fmtPct(p.milPct));
   set('hCon', `Force limit ${kfmt(fl)}, manpower +${kfmt(fl * .025)} a month${p.milPct > 3 ? `. Costs ${(Math.max(0, p.milPct - 3) * .0002 * 12 * 100).toFixed(1)} pts of GDP growth a year` : ''}.`);
   set('vMnt', Math.round(p.maint * 100) + '%');

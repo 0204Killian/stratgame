@@ -71,8 +71,6 @@ export function monthlyNation(n) {
     const before = p.pop; p.pop *= 1 + g;
     // settlers drift into near-empty land of a well-fed tribe
     if (!occ && sat > .95 && p.pop * 1e6 < 40) p.pop += rnd(1, 4) / 1e6;
-    p.gdp = Math.max(p.gdp, p.pop * 2);
-    p.gdp *= (before > 0 ? p.pop / before : 1) + (occ ? -.002 : .0012 + ((p.emp || 0) - .45) * .004 + (has(n, 'industry') ? .0015 : 0) + (n.trait === 'oil' ? .0008 : 0) + (!n.you && S.diff === 'hard' ? .0008 : 0) + rnd(-.002, .002) + p.b.harbour * .0004 - (n.tax - .15) * .012 - Math.max(0, n.milPct - 3) * .0002);
   }
   if (n.you && n.fed < .6 && R() < .5) log(`${N(n)} is short of bread: only ${Math.round(n.fed * 100)}% of the people are fed. Build farms and bakeries.`, 'bad', 4);
   if (n.you && (n.warm ?? 1) < .6 && R() < .5) log(`${N(n)} is short of firewood: only ${Math.round(n.warm * 100)}% of homes have fuel. Build forestry.`, 'bad', 4);
@@ -115,7 +113,6 @@ function aiEconomy(n, fl) {
 function internalEvents(n) {
   if (!n.alive) return;
   if (R() < (1 - stab(n)) * .004) revolt(n);
-  if (R() < .004) { provsOf(n).forEach(p => p.gdp *= 1.06); log(`${N(n)}'s economy booms.`, null, 2); }
   if (n.leader === 'paranoid' && R() < .008) { armiesOf(n).forEach(a => a.troops *= .88); log(`${N(n)}'s paranoid leader purges the army.`, null, 2); }
   if (R() < (n.leader === 'senile' ? .01 : .0035)) { const old = D.leaderMap[n.leader]; n.leader = pick(D.leaders).k; log(`${N(n)}'s ${old.n.toLowerCase()} leader dies. The new leader is ${D.leaderMap[n.leader].n.toLowerCase()}.`, null, 3); }
   if (provsOf(n).length >= 4 && R() < (n.trait === 'unrest' ? .006 : 0) + (1 - stab(n)) * .002) breakaway(n);

@@ -1,10 +1,50 @@
 {
- "wheat": { "n": "Wheat", "c": "#e3c35a" },
- "fiber": { "n": "Fiber", "c": "#c9b8e8" },
- "wood": { "n": "Wood", "c": "#b07d4f" },
- "stone": { "n": "Stone", "c": "#b8b6ad" },
- "tools": { "n": "Stone tools", "c": "#8fb3c9" },
- "bread": { "n": "Bread", "c": "#f0a35a" },
- "swords": { "n": "Swords", "c": "#e07a6a" },
- "spears": { "n": "Spears", "c": "#d6cf6a" }
+ "wheat": {
+  "n": "Wheat",
+  "c": "#e3c35a",
+  "price": 30,
+  "tier": 1
+ },
+ "fiber": {
+  "n": "Fiber",
+  "c": "#c9b8e8",
+  "price": 45,
+  "tier": 1
+ },
+ "wood": {
+  "n": "Wood",
+  "c": "#b07d4f",
+  "price": 35,
+  "tier": 1
+ },
+ "stone": {
+  "n": "Stone",
+  "c": "#b8b6ad",
+  "price": 35,
+  "tier": 1
+ },
+ "tools": {
+  "n": "Stone tools",
+  "c": "#8fb3c9",
+  "price": 600,
+  "tier": 2
+ },
+ "bread": {
+  "n": "Bread",
+  "c": "#f0a35a",
+  "price": 55,
+  "tier": 2
+ },
+ "swords": {
+  "n": "Swords",
+  "c": "#e07a6a",
+  "price": 2500,
+  "tier": 2
+ },
+ "spears": {
+  "n": "Spears",
+  "c": "#d6cf6a",
+  "price": 1600,
+  "tier": 2
+ }
 }

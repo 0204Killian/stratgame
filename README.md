@@ -10,6 +10,8 @@ A real-time grand strategy game from the stone age up. You found a small farming
 - Every tribe starts with a few hundred people on a tile where farming, forestry and stone are all possible. Free tiles hold 0 to 300 people.
 - Tiles have no name until settled; then they take a place name from the settling tribe's culture (60 cultures in `src/data/cultures.json`).
 - People eat bread and burn firewood. Wheat only feeds bakeries.
+- GDP is the yearly value added by every building: what it makes, at each good's price, less what it uses up. Raw (tier 1) goods are cheap, made goods (tier 2) worth more; taxes are a share of GDP.
+- The Resources page forecasts every good (averages, construction in progress, population growth) and suggests what to build, following the chain to the input that is really missing.
 - Soldiers come out of the workforce while they serve; soldiers killed in war are gone from the population.
 - Place names: real ones from the culture first, then names built from its naming elements (`gen` in cultures.json).
 - Every province has a biome (plains, forest, hills, mountains, desert). Stone can be quarried anywhere; farms and forestry are not possible in deserts or mountains.

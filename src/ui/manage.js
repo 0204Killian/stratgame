@@ -42,47 +42,77 @@ export function renderManage(ui) {
 }
 
 // ---------- Resources ----------
+// Built to answer "what will we run short of, and when": a list of what to build next, then every good with
+// what it is worth, what we make, what we need, and where it is heading once current construction finishes.
+const STATUS = {
+  short: ['neg', 'Short now'], falling: ['warn', 'Running down'], tight: ['warn', 'Will go short'], ok: ['', 'Balanced'],
+  surplus: ['pos', 'Surplus'], unused: ['sub', 'Not used yet'], idle: ['sub', 'Not made'] };
+const money = v => fmtGdp(v / 1e9);
+function outlookText(o, g) {
+  if (o.status === 'short') return `short by ${q(Math.max(0, o.need - o.prod))}/wk`;
+  if (o.status === 'falling') return `runs out in ${Math.max(1, Math.floor(o.weeks))} wk`;
+  if (o.status === 'tight') return o.pendIn > 0 ? 'short once new buildings open' : o.grow > 0 ? 'short as people grow' : 'short soon';
+  if (o.status === 'surplus') return `+${q(o.net)}/wk spare${g === 'bread' || g === 'wheat' ? ' (spoils)' : ''}`;
+  if (o.status === 'unused') return 'stockpiling';
+  if (o.status === 'idle') return '—';
+  return o.pendOut > 0 ? `more coming (+${q(o.pendOut)})` : 'steady';
+}
+function recLine(p, r) {
+  const B = D.buildings[r.k], g = D.goods[r.g], w = D.goods[r.why], pb = G.popBreakdown(p);
+  const why = r.reason === 'input' ? `${g.n} is held back: ${D.buildings[G.producerOf(r.g)].n.toLowerCase()} is short of ${w.n.toLowerCase()}.`
+    : r.reason === 'short' ? `${g.n} is short right now.` : r.reason === 'falling' ? `${g.n} runs out in about ${Math.max(1, Math.floor(r.weeks))} weeks.`
+    : r.reason === 'tight' ? `${g.n} will go short once growth and new buildings kick in.` : `${g.n} stock is low.`;
+  if (r.impossible) return `<div class="rec bad">${dot(g.c)}<div><b>${why}</b><span class="sub">None of your land can hold a ${B.n.toLowerCase()}. Settle or take land where it can.</span></div></div>`;
+  const best = G.bestProvinceFor(p, r.k), cost = G.buildCost(r.k, r.lv), ok = best && G.canAfford(p, cost), staff = pb.free >= r.jobs;
+  return `<div class="rec ${r.reason === 'short' || r.reason === 'input' ? 'bad' : 'warn'}">${dot(w.c)}<div><b>${why}</b>
+    <span class="sub">Build about <b>${r.lv} ${B.n.toLowerCase()}${r.lv > 1 ? ' levels' : ''}</b>: needs ${num(r.jobs)} workers (${num(pb.free)} idle${staff ? '' : ` · <span class="neg">free some by lowering other work or growing</span>`})${best ? ` · best in ${esc(best.name)}` : ' · no province free to build'}.</span></div>
+    ${btn('mgBuildBest', `${r.k}:${Math.min(r.lv, 5)}`, `Build ${Math.min(r.lv, 5)}`, { cls: 'primary', dis: !ok, title: Object.entries(cost).map(([k, v]) => `${q(v)} ${D.goods[k].n.toLowerCase()}`).join(', ') || 'labour only' })}</div>`;
+}
 function resources(p, ui) {
-  const f = p.flow || { prod: {}, use: {}, dem: {}, prodBy: {}, useBy: {} }, ps = myProvs(p);
-  const wf = ps.reduce((s, x) => s + G.workforce(x), 0), wk = ps.reduce((s, x) => s + (x.work || 0), 0), people = G.popOf(p) * 1e6;
-  let h = popStrip(p) + `<div class="mcards">${card('People', num(people), `${G.provsOf(p).length} tile${G.provsOf(p).length === 1 ? '' : 's'}`)}
+  const O = G.goodsOutlook(p), go = O.goods || {}, people = G.popOf(p) * 1e6, gdp = G.gdpOf(p);
+  let h = popStrip(p) + `<div class="mcards">${card('GDP', fmtGdp(gdp) + '/yr', `${money(gdp * 1e9 / Math.max(1, people))} per person · taxes ${pct(p.tax)}`)}
     ${card('Fed with bread', pct(p.fed), 'one bread per person a week', (p.fed ?? 1) < .95 ? 'neg' : 'pos')}
     ${card('Homes with firewood', pct(p.warm), `${q(people * (D.balance.econ.woodPerPerson || 0))} wood a week`, (p.warm ?? 1) < .95 ? 'neg' : 'pos')}
-    ${card('Stone tools', pct(p.toolSat), 'farms, forestry and quarries need them', (p.toolSat ?? 1) < .95 ? 'neg' : '')}
-    ${card('Jobs filled', `${num(wk)} / ${num(wf)}`, `${num(Math.max(0, wf - wk))} idle workers`)}</div>`;
+    ${card('Stone tools', pct(p.toolSat), 'farms, forestry and quarries need them', (p.toolSat ?? 1) < .95 ? 'neg' : '')}</div>`;
+  h += `<h3>What to build next</h3>` + ((O.recs || []).length ? `<div class="recs">${O.recs.map(r => recLine(p, r)).join('')}</div>` : `<p class="hint pos">Nothing is running short, even counting what is being built and a growing population.</p>`);
   const sel = ui.mg.good || 'bread';
-  h += `<div class="mgrid"><div><h3>Goods</h3><div class="gtable"><div class="gth"><span>Good</span><span>Stock</span><span>Made/wk</span><span>Used/wk</span><span>Net/wk</span><span>Lasts</span><span>Last 26 weeks</span></div>`;
+  h += `<h3>Goods</h3><div class="gtable"><div class="gth"><span>Good</span><span>Worth</span><span>Stock</span><span>Made/wk</span><span>Needed/wk</span><span>Outlook</span><span>Last 26 weeks</span></div>`;
   for (const g of G.GOODS()) {
-    const st = p.stock[g], pr = f.prod[g] || 0, us = f.use[g] || 0, net = pr - us, short = (f.dem[g] || 0) > us * 1.01 && st < (f.dem[g] || 0) * .5;
-    const lasts = net < -1e-6 ? st / -net : null;
-    h += `<button class="gtr ${sel === g ? 'on' : ''}" data-act="mgGood" data-arg="${g}"><span>${dot(D.goods[g].c)}${D.goods[g].n}${short ? ' <span class="neg">short</span>' : ''}</span><span>${q(st)}</span><span class="pos">${pr ? '+' + q(pr) : '—'}</span><span>${us ? '−' + q(us) : '—'}</span>
-      <span class="${net < 0 ? 'neg' : net > 0 ? 'pos' : ''}">${net ? (net > 0 ? '+' : '−') + q(Math.abs(net)) : '—'}</span><span class="${lasts != null && lasts < 8 ? 'neg' : ''}">${lasts == null ? '—' : lasts > 520 ? '10y+' : Math.floor(lasts) + ' wk'}</span><span>${spark((p.hist || {})[g], D.goods[g].c)}</span></button>`;
+    const o = go[g] || { stock: p.stock[g], prod: 0, need: 0, status: 'idle' }, [cls, lab] = STATUS[o.status] || STATUS.ok;
+    h += `<button class="gtr ${sel === g ? 'on' : ''}" data-act="mgGood" data-arg="${g}"><span>${dot(D.goods[g].c)}${D.goods[g].n}<i class="tierb">T${D.goods[g].tier}</i></span><span>$${num(D.goods[g].price)}</span><span>${q(o.stock)}</span><span class="pos">${o.prod ? q(o.prod) : '—'}</span><span>${o.need ? q(o.need) : '—'}</span>
+      <span class="olk ${cls}"><b>${lab}</b> ${outlookText(o, g)}</span><span>${spark((p.hist || {})[g], D.goods[g].c)}</span></button>`;
+    if (sel === g) h += `<div class="gexp">${goodDetail(p, g, p.flow || {}, o)}</div>`;
   }
-  h += `</div><p class="hint">Click a good to see what makes and uses it. "Short" means some demand went unmet last week.</p></div>`;
-  h += `<div class="gdetail">${goodDetail(p, sel, f)}</div></div>`;
+  h += `</div><p class="hint">Click a good to open or close its details. Made and needed are averages over the last few weeks. Needed includes workshops, people, construction and soldiers. "Will go short" counts buildings under construction and population growth over the next half year. T1 goods are raw, T2 are made from them and worth more.</p>`;
   return h;
 }
-function goodDetail(p, g, f) {
+function goodDetail(p, g, f, o) {
   const G1 = D.goods[g], by = (f.prodBy || {})[g] || {}, uby = (f.useBy || {})[g] || {};
-  const list = (o, nm) => { const e = Object.entries(o).filter(([, v]) => v > 1e-6).sort((a, b) => b[1] - a[1]); const t = e.reduce((s, [, v]) => s + v, 0);
+  const list = (obj, nm) => { const e = Object.entries(obj).filter(([, v]) => v > 1e-6).sort((a, b) => b[1] - a[1]); const t = e.reduce((s, [, v]) => s + v, 0);
     return e.length ? e.map(([k, v]) => `<div class="brk"><span>${nm(k)}</span><span>${q(v)}</span><span class="bar"><span style="width:${(v / t * 100).toFixed(0)}%;background:${G1.c}"></span></span></div>`).join('') : '<p class="hint">Nothing last week.</p>'; };
   const bName = k => D.buildings[k] ? D.buildings[k].n : (USE_NAME[k] || k);
   const uName = k => k === 'people' ? (g === 'wood' ? 'Households (firewood)' : 'People (eating)') : bName(k);
-  // provinces making it: buildings whose output is this good
-  const makers = Object.keys(D.buildings).filter(k => { const B = D.buildings[k]; return B.kind !== 'mil' && (B.methods ? B.methods.some(m => m.out[g]) : B.out && B.out[g]); });
-  const provs = myProvs(p).map(x => ({ x, v: makers.reduce((s, k) => s + ((x.out && x.out[k] && Object.keys(G.outputsOf(x, k))[0] === g) ? x.out[k] : 0), 0) })).filter(r => r.v > 0).sort((a, b) => b.v - a.v).slice(0, 8);
+  const maker = G.producerOf(g), makers = Object.keys(D.buildings).filter(k => { const B = D.buildings[k]; return B.kind !== 'mil' && (B.methods ? B.methods.some(m => m.out[g]) : B.out && B.out[g]); });
+  const provs = myProvs(p).map(x => ({ x, v: makers.reduce((s, k) => s + ((x.out && x.out[k] && Object.keys(G.outputsOf(x, k))[0] === g) ? x.out[k] : 0), 0) })).filter(r => r.v > 0).sort((a, b) => b.v - a.v).slice(0, 6);
   const tips = { wheat: 'Only bakeries use wheat: people eat bread.', bread: 'Each person eats one bread a week.', wood: 'Bakeries burn it, workshops shape it, and every home needs firewood.', tools: 'Farms, forestry and quarries work at half speed without them.', fiber: 'Nothing uses fiber yet. It is for later tiers.', swords: 'One sword per swordsman, for recruiting and refilling losses.', spears: 'One spear per spearman.', stone: 'Workshops, construction and forts use it.' };
-  return `<h3>${dot(G1.c)}${G1.n}</h3><p class="hint">${tips[g] || ''}</p>
-    <h4>Made by</h4>${list(by, bName)}<h4>Used by</h4>${list(uby, uName)}
-    <h4>Top provinces</h4>${provs.length ? provs.map(r => `<button class="brk link" data-act="mgProv" data-arg="${r.x.id}"><span>${esc(r.x.name)}</span><span>${q(r.v)}</span><span class="sub">${D.biomes[r.x.biome].n}</span></button>`).join('') : '<p class="hint">None of your provinces makes it.</p>'}
-    ${makers.length ? `<div class="btns">${makers.map(k => btn('mgBuildBest', `${k}:1`, `Build ${D.buildings[k].n.toLowerCase()} +1`, { title: 'In the province with the most free workers and the best land' })).join('')}</div>` : ''}`;
+  const B = maker && D.buildings[maker], va = maker && p.vaBy ? p.vaBy[maker] : 0, lv = maker ? myProvs(p).reduce((s, x) => s + x.b[maker], 0) : 0;
+  const recipe = B ? (B.in ? `${Object.entries(B.in).map(([k, v]) => `${q(v)} ${D.goods[k].n.toLowerCase()}`).join(' + ')} → ${q(B.out[g])} ${G1.n.toLowerCase()}` : `${B.jobs} workers → ${q(B.methods ? B.methods.find(m => m.out[g]).out[g] : B.out[g])} ${G1.n.toLowerCase()} (before land and tools)`) : '';
+  const forecast = o ? `<div class="fcast"><span>Now</span><b class="${o.net < 0 ? 'neg' : 'pos'}">${o.net >= 0 ? '+' : '−'}${q(Math.abs(o.net))}/wk</b>
+    ${o.pendOut ? `<span>New buildings</span><b class="pos">+${q(o.pendOut)}/wk</b>` : ''}${o.pendIn ? `<span>New demand</span><b class="neg">−${q(o.pendIn)}/wk</b>` : ''}${o.grow ? `<span>Growth (6 months)</span><b class="neg">−${q(o.grow)}/wk</b>` : ''}
+    <span>Then</span><b class="${o.future < 0 ? 'neg' : 'pos'}">${o.future >= 0 ? '+' : '−'}${q(Math.abs(o.future))}/wk</b></div>` : '';
+  return `<div><p class="hint">${tips[g] || ''}</p>
+    ${B ? `<p class="hint"><b>${B.n}</b>: ${recipe}.${lv ? ` You have ${lv}, adding ${money(va || 0)} a week to GDP.` : ''}</p>` : ''}
+    <h4>Outlook</h4>${forecast}</div>
+    <div><h4>Made by</h4>${list(by, bName)}<h4>Used by</h4>${list(uby, uName)}</div>
+    <div><h4>Top provinces</h4>${provs.length ? provs.map(r => `<button class="brk link" data-act="mgProv" data-arg="${r.x.id}"><span>${esc(r.x.name)}</span><span>${q(r.v)}</span><span class="sub">${D.biomes[r.x.biome].n}</span></button>`).join('') : '<p class="hint">None of your provinces makes it.</p>'}
+    ${makers.length ? `<div class="btns">${makers.map(k => btn('mgBuildBest', `${k}:1`, `Build ${D.buildings[k].n.toLowerCase()} +1`, { title: 'In the province with the most free workers and the best land' })).join('')}</div>` : ''}</div>`;
 }
 
 // ---------- Buildings ----------
 const econKeys = x => Object.keys(D.buildings).reduce((s, k) => s + (D.buildings[k].jobs ? x.b[k] * D.buildings[k].jobs * G.setting(x, k) : 0), 0);
 function buildings(p, ui) {
   const ps = myProvs(p), keys = Object.keys(D.buildings);
-  let h = popStrip(p) + `<h3>By building</h3><div class="btable"><div class="bth"><span>Building</span><span>Levels</span><span>Workers</span><span>Output/wk</span><span>Inputs</span><span>Work rate</span><span>Build where best</span></div>`;
+  let h = popStrip(p) + `<h3>By building</h3><div class="btable"><div class="bth"><span>Building</span><span>Levels</span><span>Workers</span><span>Output/wk</span><span>Value/wk</span><span>Inputs</span><span>Work rate</span><span>Build where best</span></div>`;
   for (const k of keys) {
     const B = D.buildings[k], eco = B.kind !== 'mil';
     const lv = ps.reduce((s, x) => s + x.b[k], 0), building = S.P.filter(x => x.build && x.build.nat === p.id && x.build.k === k).reduce((s, x) => s + x.build.lv, 0);
@@ -95,13 +125,13 @@ function buildings(p, ui) {
     const best = G.bestProvinceFor(p, k), c1 = G.buildCost(k, 1), c5 = G.buildCost(k, 5);
     const ok1 = best && G.canAfford(p, c1), ok5 = best && !B.max && G.canAfford(p, c5);
     h += `<div class="btr"><span>${dot(B.c)}<b>${B.n}</b></span><span>${lv}${building ? ` <span class="sub">+${building}</span>` : ''}</span>
-      <span title="People working here / jobs open at the current work rate">${eco && lv ? `${num(got * B.jobs)} / ${num(want * B.jobs)}${got < want * .95 ? ` <span class="neg">${pct(got / want)}</span>` : ''}` : '—'}</span><span>${eco && lv ? q(out) + ' ' + D.goods[k === 'farm' ? 'wheat' : og].n.toLowerCase() : '—'}</span>
+      <span title="People working here / jobs open at the current work rate">${eco && lv ? `${num(got * B.jobs)} / ${num(want * B.jobs)}${got < want * .95 ? ` <span class="neg">${pct(got / want)}</span>` : ''}` : '—'}</span><span>${eco && lv ? q(out) + ' ' + D.goods[k === 'farm' ? 'wheat' : og].n.toLowerCase() : '—'}</span><span title="Value added: what it makes, less what it uses up">${eco && lv ? money((p.vaBy || {})[k] || 0) : '—'}</span>
       <span class="${eco && lv && inSat < .95 ? 'neg' : ''}">${inp || '—'}</span>
       <span>${eco && lv ? `<select data-act="mgRate" data-arg="${k}">${rate == null ? '<option selected>Mixed</option>' : ''}${[1, .75, .5, .25, 0].map(v => `<option value="${v}" ${rate === v ? 'selected' : ''}>${v ? v * 100 + '%' : 'Off'}</option>`).join('')}</select>` : ''}</span>
       <span class="bbtn">${btn('mgBuildBest', `${k}:1`, '+1', { dis: !ok1, title: best ? `In ${best.name}` : 'No province free to build' })}${B.max ? '' : btn('mgBuildBest', `${k}:5`, '+5', { dis: !ok5, title: best ? `In ${best.name}` : 'No province free to build' })}<span class="sub">${best ? esc(best.name) : 'none free'}</span></span></div>`;
   }
   const jobsF = ps.reduce((s, x) => s + Math.min(G.workforce(x), x.work || 0), 0), jobsT = ps.reduce((s, x) => s + econKeys(x), 0);
-  h += `<div class="btr total"><span><b>All buildings</b></span><span>${ps.reduce((s, x) => s + keys.reduce((t, k) => t + x.b[k], 0), 0)}</span><span>${num(jobsF)} / ${num(jobsT)}</span><span></span><span></span><span></span><span></span></div>`;
+  h += `<div class="btr total"><span><b>All buildings</b></span><span>${ps.reduce((s, x) => s + keys.reduce((t, k) => t + x.b[k], 0), 0)}</span><span>${num(jobsF)} / ${num(jobsT)}</span><span></span><span>${money(Object.values(p.vaBy || {}).reduce((s, v) => s + v, 0))}</span><span></span><span></span><span></span></div>`;
   h += `</div><p class="hint">Workers: people working there and jobs open at the current work rate. Farm output counts wheat and fiber together. "Build where best" picks the province with the most free workers, and the best land for farms, forestry and quarries.</p>`;
   // construction queue
   const cons = S.P.filter(x => x.build && x.build.nat === p.id);

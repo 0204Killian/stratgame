@@ -281,7 +281,7 @@ function onPanelClick(e) {
     case 'alGood': ui.mg.good = arg; openManage('res'); break;
     case 'mgTab': openManage(arg); break;
     case 'mgClose': closeManage(); break;
-    case 'mgGood': ui.mg.good = arg; refreshManage(true); break;
+    case 'mgGood': ui.mg.good = ui.mg.good === arg ? null : arg; refreshManage(true); break;
     case 'mgProv': select({ kind: 'prov', id: +arg }, true); refreshManage(true); break;
     case 'mgArmy': select({ kind: 'armies', ids: [+arg] }, true); break;
     case 'mgSort': { const s = ui.mg.sort || { k: 'pop', d: -1 }; ui.mg.sort = s.k === arg ? { k: arg, d: -s.d } : { k: arg, d: arg === 'name' ? 1 : -1 }; refreshManage(true); break; }
