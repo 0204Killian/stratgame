@@ -3,8 +3,8 @@ import * as G from '../sim/game.js';
 import { S, D, YEAR } from '../sim/game.js';
 import { MapView } from './map.js';
 import { Setup } from './setup.js';
-import { TABS, renderTab, buildEcon, updateEcon } from './panels.js';
-import { renderManage, SCREENS } from './manage.js';
+import { renderTab, buildEcon, updateEcon } from './panels.js';
+import { renderManage, manageHead, SCREENS } from './manage.js';
 import { showModal, closeModal, modalOpen, initModalLayer, toast } from './dialogs.js';
 import { platform } from './platform.js';
 import { sound, sfx, unlockAudio } from './audio.js';
@@ -14,7 +14,7 @@ const DATA_FILES = ['balance', 'governments', 'setup', 'traits', 'leaders', 'bio
 const SPEED_MS = [0, 500, 240, 110, 45, 12];
 const $ = id => document.getElementById(id);
 
-const ui = { mg: { open: false, tab: 'res', good: 'bread', sort: null, rec: null, html: '' }, mapMode: 'political', tab: 'sel', sel: null, confirm: null, peaceSel: {}, recProv: null, hoverProv: -1, paused: true, speed: 2, hold: false, forceBase: true, setup: null, lastHtml: '', econBuilt: false, keys: new Set() };
+const ui = { mg: { open: false, tab: 'econ', good: 'bread', sort: null, rec: null, html: '', econBuilt: false }, preview: null, mapMode: 'political', tab: 'sel', sel: null, confirm: null, peaceSel: {}, recProv: null, hoverProv: -1, paused: true, speed: 2, hold: false, forceBase: true, setup: null, lastHtml: '', econBuilt: false, keys: new Set() };
 let map, setup, profile, acc = 0, lastT = 0, lastPanel = 0, lastYear = 0;
 
 const defaultProfile = () => ({ settings: { sound: true, volume: .7, autosave: 'yearly', uiScale: 1, confirmWar: true, edgePan: false }, records: { games: 0, wins: 0, best: 0, medals: {} } });
@@ -34,7 +34,7 @@ async function boot() {
   map = new MapView($('map'));
   setup = new Setup(app);
   window.__wn = { G, map, ui }; // handy for poking at the game from DevTools (Ctrl+Shift+I)
-  buildTabs();
+  buildWindows();
   bindInput();
   new ResizeObserver(() => { map.resize(); }).observe($('mapwrap'));
   map.resize();
@@ -66,7 +66,7 @@ function enterGame() {
   map.ensureWorld(); map.limits();
   const p = G.player(); if (p) { const c = S.P[p.cap]; map.centerOn(c.cx, c.cy, Math.max(map.minZoom * 2, 1.8)); }
   showRibbon('Your tribe is settled. Press Play or Space to start the clock. Click your home tile to see its fields and workshops. Feed your people bread and keep them in firewood; send your war band to settle unclaimed land nearby.', 10000);
-  renderSpeed(); renderTabs(); refreshPanel(true); renderTopbar();
+  renderSpeed(); renderMgBar(); refreshPanel(true); renderTopbar();
 }
 
 // ---------- sim events ----------
@@ -77,7 +77,7 @@ function onSimEvent(type, d) {
   else if (type === 'toast') toast(d.lab, d.title, d.sub);
   else if (type === 'decision') sfx.ding();
   else if (type === 'peaceTable') {   // enemy crushed: stop the clock and open the treaty
-    ui.paused = true; renderSpeed(); delete ui.peaceSel[d.war]; setTab('wars'); sfx.ding();
+    ui.paused = true; renderSpeed(); delete ui.peaceSel[d.war]; openManage('wars'); sfx.ding();
     const w = S.wars.find(x => x.id === d.war), e = w && S.nations[G.enemyIn(w, G.player().id)];
     if (e) toast('Enemy crushed', e.name, `Their provinces cost ${Math.round(G.CRUSH_MULT * 100)}% of normal. Draw up the peace.`);
   }
@@ -105,9 +105,9 @@ function loop(t) {
       if (S.over) { ui.paused = true; renderSpeed(); }
     } else acc = 0;
     keyPan(dt);
-    if (t - lastPanel > 300) { lastPanel = t; renderTopbar(); if (!ui.hold) { refreshPanel(); refreshManage(); } }
+    if (t - lastPanel > 300) { lastPanel = t; renderTopbar(); renderMgBar(); if (!ui.hold) refreshPanel(); }
   } else keyPan(dt);
-  map.draw(t, { selProv: ui.sel && ui.sel.kind === 'prov' ? ui.sel.id : null, selArmies: ui.sel && ui.sel.kind === 'armies' ? new Set(ui.sel.ids) : null, hoverProv: ui.hoverProv, setup: ui.setup, mapMode: ui.mapMode, get forceBase() { return ui.forceBase; }, set forceBase(v) { ui.forceBase = v; } });
+  map.draw(t, { selProv: ui.sel && ui.sel.kind === 'prov' ? ui.sel.id : null, selArmies: ui.sel && ui.sel.kind === 'armies' ? new Set(ui.sel.ids) : null, hoverProv: ui.hoverProv, setup: ui.setup, mapMode: ui.mapMode, preview: ui.preview, get forceBase() { return ui.forceBase; }, set forceBase(v) { ui.forceBase = v; } });
   requestAnimationFrame(loop);
 }
 function keyPan(dt) {
@@ -117,17 +117,37 @@ function keyPan(dt) {
   if (dx || dy) map.pan(dx, dy);
 }
 
-// ---------- management screens ----------
-function openManage(tab) { if (!S || S.phase !== 'game') return; ui.mg.open = true; if (tab) ui.mg.tab = tab; $('mgmt').hidden = false; renderMgBar(); refreshManage(true); }
-function closeManage() { ui.mg.open = false; $('mgmt').hidden = true; renderMgBar(); }
+// ---------- windows: every page on the left, the selection card on the right ----------
+function openManage(tab) { if (!S || S.phase !== 'game') return; if (tab && tab !== ui.mg.tab) ui.mg.econBuilt = false; ui.mg.open = true; if (tab) ui.mg.tab = tab; ui.confirm = null; $('mgmt').hidden = false; renderMgBar(); refreshManage(true); }
+function closeManage() { ui.mg.open = false; ui.mg.econBuilt = false; $('mgmt').hidden = true; renderMgBar(); }
 function toggleManage(tab) { if (ui.mg.open && ui.mg.tab === tab) closeManage(); else openManage(tab); }
-function renderMgBar() { document.querySelectorAll('#mgbar [data-mg]').forEach(b => b.classList.toggle('on', ui.mg.open && b.dataset.mg === ui.mg.tab)); }
+function renderMgBar() {
+  const p = S && S.phase === 'game' ? G.player() : null, bar = $('mgbar');
+  const alert = k => p && ((k === 'tech' && S.techOffers.length && p.rp >= G.techCost(p)) || (k === 'wars' && G.warsOf(p.id).length));
+  const html = SCREENS.map(s => `<button data-mg="${s.k}" class="${ui.mg.open && ui.mg.tab === s.k ? 'on' : ''}" title="${s.n} (${s.key})">${s.n}${alert(s.k) ? '<i class="dot"></i>' : ''}<small>${s.key}</small></button>`).join('');
+  if (bar.dataset.h !== html) { bar.innerHTML = html; bar.dataset.h = html; }
+}
 function refreshManage(force) {
   if (!ui.mg.open || !S || S.phase !== 'game') return;
-  const el = $('mgmt'); if (!force && el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
+  const el = $('mgmt');
+  if (ui.mg.tab === 'econ') {   // built once and updated in place so the sliders keep working while dragging
+    if (!ui.mg.econBuilt || force) { el.innerHTML = `${manageHead(ui)}<div class="mscroll"><div class="wbody">${buildEcon()}</div></div>`; ui.mg.econBuilt = true; ui.mg.html = ''; }
+    updateEcon(ui); return;
+  }
+  if (!force && el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
   const html = renderManage(ui); if (!force && html === ui.mg.html) return;
   const sc = el.querySelector('.mscroll'), top = sc ? sc.scrollTop : 0;
   el.innerHTML = html; ui.mg.html = html; const sc2 = el.querySelector('.mscroll'); if (sc2) sc2.scrollTop = top;
+}
+function refreshSel(force) {
+  const el = $('selwin');
+  if (!ui.sel || !S || S.phase !== 'game') { if (!el.hidden) { el.hidden = true; ui.lastHtml = ''; } return; }
+  if (ui.sel.kind === 'armies') { ui.sel.ids = ui.sel.ids.filter(id => S.armies.some(a => a.id === id)); if (!ui.sel.ids.length) { ui.sel = null; el.hidden = true; return; } }
+  if (!force && el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
+  const body = renderTab({ ...ui, tab: 'sel' });
+  if (!ui.sel) { el.hidden = true; return; }   // the selection vanished (army destroyed)
+  const html = `<button class="selclose" data-act="deselect" title="Close (Esc)">Close</button>${body}`;
+  el.hidden = false; if (force || html !== ui.lastHtml) { const st = el.scrollTop; el.innerHTML = html; el.scrollTop = st; ui.lastHtml = html; }
 }
 function toggleTerrain() { ui.mapMode = ui.mapMode === 'terrain' ? 'political' : 'terrain'; $('zTerrain').classList.toggle('primary', ui.mapMode === 'terrain'); }
 
@@ -156,46 +176,19 @@ function renderTopbar() {
   $('tResearch').classList.toggle('pos', !!ready);
 }
 
-// ---------- side panel ----------
-function buildTabs() {
-  $('tabs').innerHTML = TABS.map((t, i) => `<button data-tabbtn="${t.k}"><span>${t.n}</span><small>F${i + 1}</small></button>`).join('');
-  $('tabs').addEventListener('click', e => { const b = e.target.closest('[data-tabbtn]'); if (b) setTab(b.dataset.tabbtn); });
-  const side = $('side');
-  side.addEventListener('pointerdown', () => { ui.hold = true; });
+// ---------- panels ----------
+function buildWindows() {
   document.addEventListener('pointerup', () => setTimeout(() => { ui.hold = false; }, 250));
-  $('tabbody').addEventListener('click', onPanelClick);
-  $('tabbody').addEventListener('input', onPanelInput);
-  $('tabbody').addEventListener('change', onPanelInput);
-  $('mgmt').addEventListener('click', onPanelClick);
-  $('mgmt').addEventListener('input', onPanelInput);
-  $('mgmt').addEventListener('change', onPanelInput);
-  $('mgmt').addEventListener('pointerdown', () => { ui.hold = true; });
-  $('mgbar').addEventListener('click', e => { const b = e.target.closest('[data-mg]'); if (b) toggleManage(b.dataset.mg); });
-  document.querySelectorAll('.stat[data-tab]').forEach(el => el.onclick = () => setTab(el.dataset.tab));
-}
-function setTab(k) { ui.tab = k; ui.confirm = null; ui.econBuilt = false; renderTabs(); refreshPanel(true); }
-function renderTabs() {
-  const p = G.player();
-  document.querySelectorAll('[data-tabbtn]').forEach(b => {
-    b.classList.toggle('on', b.dataset.tabbtn === ui.tab);
-    const alert = p && ((b.dataset.tabbtn === 'tech' && S.techOffers.length && p.rp >= G.techCost(p)) || (b.dataset.tabbtn === 'wars' && G.warsOf(p.id).length));
-    const span = b.querySelector('span'); span.innerHTML = TABS.find(t => t.k === b.dataset.tabbtn).n + (alert ? '<i class="dot"></i>' : '');
-  });
-}
-function refreshPanel(force) {
-  if (!S || S.phase !== 'game') return;
-  renderTabs();
-  const body = $('tabbody');
-  if (ui.tab === 'econ') {
-    if (!ui.econBuilt || force) { body.innerHTML = buildEcon(); ui.econBuilt = true; ui.lastHtml = ''; }
-    updateEcon(ui); return;
+  for (const id of ['mgmt', 'selwin']) {
+    $(id).addEventListener('click', onPanelClick); $(id).addEventListener('input', onPanelInput); $(id).addEventListener('change', onPanelInput);
+    $(id).addEventListener('pointerdown', () => { ui.hold = true; });
   }
-  const html = renderTab(ui);
-  if (force || html !== ui.lastHtml) { const st = body.scrollTop; body.innerHTML = html; body.scrollTop = st; ui.lastHtml = html; }
+  $('mgbar').addEventListener('click', e => { const b = e.target.closest('[data-mg]'); if (b) toggleManage(b.dataset.mg); });
+  document.querySelectorAll('.stat[data-tab]').forEach(el => el.onclick = () => openManage(el.dataset.tab));
 }
+function refreshPanel(force) { if (!S || S.phase !== 'game') return; refreshSel(force); refreshManage(force); }
 function select(sel, center) {
-  ui.sel = sel; ui.confirm = null;
-  if (ui.tab !== 'sel') { ui.tab = 'sel'; ui.econBuilt = false; }
+  ui.sel = sel; ui.confirm = null; ui.preview = null;
   if (center && sel) {
     if (sel.kind === 'prov') { const p = S.P[sel.id]; map.centerOn(p.cx, p.cy); }
     else { const a = S.armies.find(x => x.id === sel.ids[0]); if (a) { const [x, y] = map.armyPos(a); map.centerOn(x, y); } }
@@ -233,7 +226,7 @@ function onPanelClick(e) {
     case 'mgClose': closeManage(); break;
     case 'mgGood': ui.mg.good = arg; refreshManage(true); break;
     case 'mgProv': select({ kind: 'prov', id: +arg }, true); refreshManage(true); break;
-    case 'mgArmy': closeManage(); select({ kind: 'armies', ids: [+arg] }, true); break;
+    case 'mgArmy': select({ kind: 'armies', ids: [+arg] }, true); break;
     case 'mgSort': { const s = ui.mg.sort || { k: 'pop', d: -1 }; ui.mg.sort = s.k === arg ? { k: arg, d: -s.d } : { k: arg, d: arg === 'name' ? 1 : -1 }; refreshManage(true); break; }
     case 'mgBuildBest': { const [k, lv] = arg.split(':'); const r = result(G.cmdBuildBest(k, +lv)); if (r.ok) toast('Construction started', `${D.buildings[k].n}${+lv > 1 ? ' ×' + lv : ''}`, `In ${S.P[r.prov].name}`); refreshManage(true); break; }
     case 'mgCancel': result(G.cmdCancelBuild(+arg)); refreshManage(true); break;
@@ -276,7 +269,7 @@ function onPanelInput(e) {
     else sel[k] = t.checked;
     refreshPanel(true); return;
   } else return;
-  if (ui.tab === 'econ') updateEcon(ui);
+  if (ui.mg.open && ui.mg.tab === 'econ') updateEcon(ui);
   renderTopbar();
 }
 
@@ -284,29 +277,34 @@ function onPanelInput(e) {
 function bindInput() {
   const c = $('map');
   let down = null;
-  c.addEventListener('mousedown', e => { unlockAudio(); down = { b: e.button, x: e.clientX, y: e.clientY, moved: false }; if (e.button === 1) e.preventDefault(); });
+  // Left-drag draws a selection box around armies (EU4 style); right- or middle-drag pans. In the setup screen, any drag pans.
+  c.addEventListener('mousedown', e => { unlockAudio(); const r = c.getBoundingClientRect(); down = { b: e.button, x: e.clientX, y: e.clientY, sx: e.clientX - r.left, sy: e.clientY - r.top, moved: false, box: e.button === 0 && S && S.phase === 'game' }; if (e.button === 1) e.preventDefault(); });
   window.addEventListener('mousemove', e => {
     const r = c.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
     if (down) {
       const dx = e.clientX - down.x, dy = e.clientY - down.y;
-      if (!down.moved && Math.hypot(dx, dy) > 5) { down.moved = true; c.classList.add('panning'); }
-      if (down.moved) { map.pan(e.movementX, e.movementY); }
+      if (!down.moved && Math.hypot(dx, dy) > 5) { down.moved = true; if (!down.box) c.classList.add('panning'); }
+      if (down.moved) {
+        if (down.box) { const bx = $('boxsel'); bx.hidden = false; Object.assign(bx.style, { left: Math.min(down.sx, sx) + 'px', top: Math.min(down.sy, sy) + 'px', width: Math.abs(sx - down.sx) + 'px', height: Math.abs(sy - down.sy) + 'px' }); }
+        else map.pan(e.movementX, e.movementY);
+      }
       return;
     }
-    if (e.target !== c) { ui.hoverProv = -1; $('tooltip').hidden = true; return; }
-    hover(sx, sy);
+    if (e.target !== c) { ui.hoverProv = -1; ui.preview = null; $('tooltip').hidden = true; return; }
+    hover(sx, sy, e.shiftKey);
   });
   window.addEventListener('mouseup', e => {
-    if (!down) return; const d = down; down = null; c.classList.remove('panning');
-    if (d.moved || e.target !== c) return;
+    if (!down) return; const d = down; down = null; c.classList.remove('panning'); $('boxsel').hidden = true;
     const r = c.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+    if (d.moved) { if (d.box) boxSelect(d.sx, d.sy, sx, sy, e.shiftKey); return; }
+    if (e.target !== c) return;
     if (d.b === 0) leftClick(sx, sy, e.shiftKey);
-    else if (d.b === 2) rightClick(sx, sy);
+    else if (d.b === 2) rightClick(sx, sy, e.shiftKey);
   });
   c.addEventListener('contextmenu', e => e.preventDefault());
   c.addEventListener('wheel', e => { e.preventDefault(); const r = c.getBoundingClientRect(); map.zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * .0016)); }, { passive: false });
   c.addEventListener('dblclick', e => { if (S.phase !== 'game') return; const r = c.getBoundingClientRect(); map.zoomAt(e.clientX - r.left, e.clientY - r.top, 1.8); });
-  c.addEventListener('mouseleave', () => { ui.hoverProv = -1; $('tooltip').hidden = true; });
+  c.addEventListener('mouseleave', () => { ui.hoverProv = -1; ui.preview = null; $('tooltip').hidden = true; });
   $('zIn').onclick = () => map.zoomAt(map.cw / 2, map.ch / 2, 1.4);
   $('zOut').onclick = () => map.zoomAt(map.cw / 2, map.ch / 2, 1 / 1.4);
   $('zFit').onclick = () => map.fit();
@@ -318,16 +316,27 @@ function bindInput() {
   window.addEventListener('keyup', e => ui.keys.delete(e.code));
   window.addEventListener('blur', () => ui.keys.clear());
 }
-function hover(sx, sy) {
+function hover(sx, sy, shift) {
   if (!S) return;
   const tip = $('tooltip'), hit = map.armyAt(sx, sy), a = hit && hit.a, pid = map.provAt(sx, sy);
-  ui.hoverProv = a ? -1 : pid;
+  ui.hoverProv = a ? -1 : pid; ui.preview = null;
   let html = '';
   if (a) { const n = S.nations[a.nat], tr = hit.ids.reduce((s, id) => s + (S.armies.find(x => x.id === id)?.troops || 0), 0); html = `${chip(n)}<b>${esc(n.name)}</b><br>${num(tr)} troops${hit.ids.length > 1 ? ` in ${hit.ids.length} armies` : ''}`; }
   else if (pid >= 0) {
     const p = S.P[pid], o = p.owner != null ? S.nations[p.owner] : null;
     html = `<b>${esc(p.name)}</b><br>${o ? chip(o) + esc(o.name) : 'Free province'}${p.ctrl != null && p.ctrl !== p.owner ? ` · occupied by ${esc(S.nations[p.ctrl].name)}` : ''}<br><span class="sub">${D.biomes[p.biome].n}${p.res === 'port' ? ' · harbour' : ''} · ${kfmt(p.pop * 1e6)} people</span>${S.battles.some(b => b.prov === pid) ? '<br><span class="neg">Battle here · click for details</span>' : ''}`;
-    if (ui.sel && ui.sel.kind === 'armies' && S.phase === 'game') { const own = ui.sel.ids.map(id => S.armies.find(x => x.id === id)).filter(x => x && S.nations[x.nat].you); if (own.length) { const path = G.findPath(S.nations[own[0].nat], own[0].prov, pid); html += `<br><span class="${path ? 'pos' : 'neg'}">${path ? `Right-click to march · ${path.length} province${path.length === 1 ? '' : 's'}` : 'No route'}</span>`; } }
+    if (ui.sel && ui.sel.kind === 'armies' && S.phase === 'game') {
+      const own = ui.sel.ids.map(id => S.armies.find(x => x.id === id)).filter(x => x && S.nations[x.nat].you && !x.retreat);
+      if (own.length) {
+        // preview the route of the first selected army; with Shift, the waypoint added after its current route
+        const a0 = own[0], n = S.nations[a0.nat], from = shift && a0.path.length ? a0.path[a0.path.length - 1] : a0.prov, path = G.findPath(n, from, pid);
+        if (path && path.length) {
+          const before = shift && a0.path.length ? G.etaDays(a0) : 0, days = before + G.routeDays(n, from, path);
+          ui.preview = { nat: a0.nat, from, path, days };
+          html += `<br><span class="pos">${shift ? 'Shift+right-click: add waypoint' : 'Right-click to march'} · ${Math.ceil(days)} days · arrives ${dateStr(S.day + Math.ceil(days))}</span>`;
+        } else html += `<br><span class="${path ? 'sub' : 'neg'}">${path ? 'Already here' : 'No route: you need to be at war with the owner, or a harbour or navy to cross the sea'}</span>`;
+      }
+    }
   }
   if (!html) { tip.hidden = true; return; }
   tip.innerHTML = html; tip.hidden = false;
@@ -349,31 +358,38 @@ function leftClick(sx, sy, shift) {
   const pid = map.provAt(sx, sy);
   select(pid >= 0 ? { kind: 'prov', id: pid } : null);
 }
-function rightClick(sx, sy) {
+// Box select: every one of your war bands whose counter is inside the box. Shift adds to the current selection.
+function boxSelect(x0, y0, x1, y1, shift) {
+  const [ax, bx] = [Math.min(x0, x1), Math.max(x0, x1)], [ay, by] = [Math.min(y0, y1), Math.max(y0, y1)];
+  const ids = map.hits.filter(h => S.nations[h.a.nat].you && h.x1 >= ax && h.x0 <= bx && h.y1 >= ay && h.y0 <= by).flatMap(h => h.ids);
+  if (!ids.length) return;
+  const prev = shift && ui.sel && ui.sel.kind === 'armies' ? ui.sel.ids : [];
+  select({ kind: 'armies', ids: [...new Set([...prev, ...ids])] }); sfx.click();
+}
+function rightClick(sx, sy, shift) {
   if (!S || S.phase !== 'game' || !ui.sel || ui.sel.kind !== 'armies') return;
   const pid = map.provAt(sx, sy); if (pid < 0) return;
   const own = ui.sel.ids.filter(id => { const a = S.armies.find(x => x.id === id); return a && S.nations[a.nat].you; });
   if (!own.length) return;
-  const r = G.cmdMove(own, pid);
+  const r = G.cmdMove(own, pid, shift); ui.preview = null;
   if (r.ok) { sfx.click(); refreshPanel(true); } else { toast('Cannot march there', S.P[pid].name, r.msg, 'bad'); sfx.error(); }
 }
 function togglePause() { if (!S || S.phase !== 'game' || S.over) return; unlockAudio(); ui.paused = !ui.paused; renderSpeed(); }
 function onKey(e) {
   if (e.target.closest && e.target.closest('input[type=text],select,textarea')) return;
-  if (e.code === 'Escape') { if (modalOpen()) closeModal(); else if (ui.mg.open) closeManage(); else if (ui.sel) select(null); else if (S.phase === 'game') menuDialog(); return; }
+  if (e.code === 'Escape') { if (modalOpen()) closeModal(); else if (ui.sel) select(null); else if (ui.mg.open) closeManage(); else if (S.phase === 'game') menuDialog(); return; }
   if (e.code === 'F11') { e.preventDefault(); platform.toggleFullscreen(); return; }
   if (modalOpen()) return;
   if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { e.preventDefault(); saveDialog(); return; }
   if ((e.ctrlKey || e.metaKey) && e.code === 'KeyO') { e.preventDefault(); loadDialog(); return; }
   if (e.code === 'F5') { e.preventDefault(); quickSave(); return; }
   if (e.code === 'F9') { e.preventDefault(); loadSave('Quicksave'); return; }
-  const fi = /^F([1-6])$/.exec(e.code); if (fi && S.phase === 'game') { e.preventDefault(); setTab(TABS[+fi[1] - 1].k); return; }
   if (e.code === 'Space') { e.preventDefault(); togglePause(); return; }
   const d = /^(Digit|Numpad)([1-5])$/.exec(e.code); if (d && S.phase === 'game') { ui.speed = +d[2]; renderSpeed(); return; }
   if (e.code === 'Equal' || e.code === 'NumpadAdd') { map.zoomAt(map.cw / 2, map.ch / 2, 1.25); return; }
   if (e.code === 'Minus' || e.code === 'NumpadSubtract') { map.zoomAt(map.cw / 2, map.ch / 2, .8); return; }
   if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) { toggleTerrain(); return; }
-  const mk = { KeyG: 'res', KeyB: 'bld', KeyM: 'army' }[e.code]; if (mk && S.phase === 'game' && !e.ctrlKey && !e.metaKey) { toggleManage(mk); return; }
+  const mk = SCREENS.find(x => 'Key' + x.key === e.code); if (mk && S.phase === 'game' && !e.ctrlKey && !e.metaKey) { toggleManage(mk.k); return; }
   if (e.code === 'Home') { const p = G.player(); if (p && S.phase === 'game') { const c = S.P[p.cap]; map.centerOn(c.cx, c.cy); } else map.fit(); return; }
   if (/^(Arrow|Key[WASD])/.test(e.code)) ui.keys.add(e.code);
 }
@@ -501,7 +517,7 @@ function recordsDialog() {
     buttons: [{ label: 'Close', primary: true }] });
 }
 function helpDialog() {
-  const k = [['Left-click', 'Select a province or army'], ['Shift + left-click', 'Add or remove an army from the selection'], ['Right-click', 'March selected armies to a province'], ['Drag', 'Pan the map'], ['Mouse wheel', 'Zoom'], ['Double-click', 'Zoom in on a spot'], ['W A S D / arrows', 'Pan'], ['+ / −', 'Zoom'], ['Home', 'Jump to your capital'], ['Space', 'Pause or play'], ['1–5', 'Game speed'], ['F1–F6', 'Selection, Economy, Wars, Research, Nations, Log'], ['Ctrl+S / Ctrl+O', 'Save / load'], ['F5 / F9', 'Quicksave / quickload'], ['F11', 'Fullscreen'], ['Esc', 'Deselect, close a window, or open the menu']];
+  const k = [['Left-click', 'Select a province or army'], ['Left-drag', 'Draw a box to select several war bands'], ['Shift + left-click / drag', 'Add war bands to the selection'], ['Right-click', 'March the selected war bands (fastest route)'], ['Shift + right-click', 'Add a waypoint after the current route'], ['Right- or middle-drag', 'Pan the map'], ['Mouse wheel', 'Zoom'], ['Double-click', 'Zoom in on a spot'], ['W A S D / arrows', 'Pan'], ['+ / −', 'Zoom'], ['Home', 'Jump to your capital'], ['Space', 'Pause or play'], ['1–5', 'Game speed'], ['E G B M V R N L', 'Tribe, Resources, Buildings, Army, Wars, Research, Nations, Log'], ['T', 'Terrain map'], ['Ctrl+S / Ctrl+O', 'Save / load'], ['F5 / F9', 'Quicksave / quickload'], ['F11', 'Fullscreen'], ['Esc', 'Deselect, close a window, or open the menu']];
   showModal({ title: 'Controls', html: `<div class="keys">${k.map(([a, b]) => `<kbd>${a}</kbd><span>${b}</span>`).join('')}</div>`, buttons: [{ label: 'Close', primary: true }] });
 }
 

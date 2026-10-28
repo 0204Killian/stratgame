@@ -35,14 +35,16 @@
   <main id="main">
     <section id="mapwrap">
       <canvas id="map" aria-label="World map"></canvas>
-      <div id="mgbar"><button data-mg="res" title="Resources (G)">Resources</button><button data-mg="bld" title="Buildings (B)">Buildings</button><button data-mg="army" title="Army (M)">Army</button></div>
+      <div id="mgbar"></div>
       <div id="ribbon" hidden></div>
       <div id="mgmt" hidden></div>
+      <div id="selwin" hidden></div>
+      <div id="boxsel" hidden></div>
       <div id="tooltip" hidden></div>
       <div id="mapctl">
         <button id="zIn" title="Zoom in (+)">+</button><button id="zOut" title="Zoom out (−)">−</button><button id="zFit" title="Fit map (Home)">Fit</button><button id="zTerrain" title="Terrain map (T)">Terrain</button>
       </div>
-      <div id="hint">Left-click select · Shift-click add army · Right-click march · Wheel zoom · Drag pan · Space pause · G resources · B buildings · M army · T terrain</div>
+      <div id="hint">Click select · Drag box-select armies · Right-click march · Shift+right-click waypoint · Right/middle-drag pan · Wheel zoom · Space pause · T terrain</div>
 
       <div id="setup">
         <div class="setupcard">
@@ -75,10 +77,6 @@
       </div>
     </section>
 
-    <aside id="side">
-      <nav id="tabs"></nav>
-      <div id="tabbody"></div>
-    </aside>
   </main>
 </div>
 <div id="modalLayer" hidden><div id="modal" class="modal" role="dialog" aria-modal="true"></div></div>

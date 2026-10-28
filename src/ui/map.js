@@ -2,8 +2,8 @@
 //   terrain  - sea, shallows, sea routes: drawn once per world
 //   base     - province colours (via a 1-pixel-per-cell image), occupation, borders, icons: rebuilt when the map changes
 //   overlay  - selection, sieges, battles, routes, armies, labels: drawn every frame
-import { S, D, devastated, inBattle, mor, MORALE } from '../sim/game.js';
-import { kfmt } from './format.js';
+import { S, D, devastated, inBattle, mor, MORALE, etaDays } from '../sim/game.js';
+import { kfmt, shortDate } from './format.js';
 
 const SEA = '#15344a', INK = '#0b1620', FREE = [143, 136, 115], FREE2 = [133, 126, 106];
 export const BUILD_COL = { fort: '#d6cfb8', harbour: '#5dd6e0' };
@@ -241,14 +241,25 @@ export class MapView {
       g.strokeStyle = f.kind === 'nuke' ? `rgba(255,240,200,${1 - t})` : `rgba(239,116,87,${1 - t})`; g.lineWidth = f.kind === 'nuke' ? 6 : 3; g.stroke();
       if (f.kind === 'nuke' && t < .25) { g.fillStyle = `rgba(255,250,230,${.8 - t * 3})`; g.beginPath(); g.arc(p.cx, p.cy, 30, 0, 7); g.fill(); }
     }
-    const selSet = ui.selArmies || new Set();
+    // routes: every marching army of yours, brighter when selected, with a dot at each stop and an arrowhead at the end
+    const selSet = ui.selArmies || new Set(), etas = [], seen = new Set();
+    const arrow = (x0, y0, x1, y1, col) => { const a = Math.atan2(y1 - y0, x1 - x0), L = 11 * lw; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - L * Math.cos(a - .45), y1 - L * Math.sin(a - .45)); g.lineTo(x1 - L * Math.cos(a + .45), y1 - L * Math.sin(a + .45)); g.closePath(); g.fillStyle = col; g.fill(); };
+    const route = (x0, y0, ids, col, w) => {
+      g.setLineDash([7 * lw, 5 * lw]); g.strokeStyle = col; g.lineWidth = w * lw; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(x0, y0); for (const id of ids) g.lineTo(S.P[id].cx, S.P[id].cy); g.stroke(); g.setLineDash([]);
+      for (const id of ids.slice(0, -1)) { g.beginPath(); g.arc(S.P[id].cx, S.P[id].cy, 2.6 * lw, 0, 7); g.fillStyle = col; g.fill(); }
+      const e = S.P[ids[ids.length - 1]], pv = ids.length > 1 ? S.P[ids[ids.length - 2]] : { cx: x0, cy: y0 };
+      arrow(pv.cx, pv.cy, e.cx, e.cy, col);
+    };
     for (const a of S.armies) {
       if (!a.path.length) continue; const n = S.nations[a.nat]; if (!n.you && !selSet.has(a.id)) continue;
       const sel = selSet.has(a.id), [sx, sy] = this.armyPos(a);
-      g.setLineDash([6 * lw, 5 * lw]); g.strokeStyle = sel ? '#ffd27a' : 'rgba(255,210,122,.55)'; g.lineWidth = (sel ? 3 : 2) * lw;
-      g.beginPath(); g.moveTo(sx, sy); for (const id of a.path) g.lineTo(S.P[id].cx, S.P[id].cy); g.stroke(); g.setLineDash([]);
-      if (sel) { const e = S.P[a.path[a.path.length - 1]]; g.beginPath(); g.arc(e.cx, e.cy, 7 * lw, 0, 7); g.fillStyle = '#ffd27a'; g.fill(); }
+      route(sx, sy, a.path, sel ? '#ffd27a' : 'rgba(255,210,122,.5)', sel ? 3 : 2);
+      const end = a.path[a.path.length - 1];
+      if (sel && !seen.has(end)) { seen.add(end); etas.push({ p: S.P[end], d: S.day + Math.ceil(etaDays(a)) }); }
     }
+    const pv = ui.preview;
+    if (pv && pv.path.length) { const f = S.P[pv.from]; route(f.cx, f.cy, pv.path, 'rgba(244,246,241,.85)', 2.5); etas.push({ p: S.P[pv.path[pv.path.length - 1]], d: S.day + Math.ceil(pv.days), ghost: true }); }
     // screen-space: nation names, province names, armies
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
@@ -271,6 +282,13 @@ export class MapView {
         if (!vis(p) || !p.named) continue; let [x, y] = this.toScreen(p.cx, p.cy + 20); y += 9;
         g.lineWidth = 3; g.strokeStyle = 'rgba(11,22,32,.8)'; g.strokeText(p.name, x, y); g.fillStyle = 'rgba(244,246,241,.9)'; g.fillText(p.name, x, y);
       }
+    }
+    // arrival dates at the end of selected routes and the hover preview
+    g.font = '600 12px "Segoe UI", system-ui, sans-serif';
+    for (const e of etas) {
+      const [x, y] = this.toScreen(e.p.cx, e.p.cy), t = `${(e.d % D.balance.month) + 1} ${shortDate(e.d)}`, w = g.measureText(t).width + 12;
+      g.fillStyle = e.ghost ? 'rgba(11,22,32,.85)' : 'rgba(242,177,52,.95)'; g.fillRect(x - w / 2, y + 12, w, 18);
+      g.fillStyle = e.ghost ? '#f4f6f1' : '#1d1404'; g.fillText(t, x, y + 21.5);
     }
     // armies: one counter per nation per province (with a count badge), moving armies drawn individually
     this.hits = [];

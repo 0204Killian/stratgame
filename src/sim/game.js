@@ -11,7 +11,7 @@ import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
 export * from './core.js';
-export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays } from './military.js';
+export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays, legDays, etaDays, routeDays } from './military.js';
 export { GOODS, ECON, workforce, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
@@ -123,9 +123,9 @@ const mine = a => a && S.nations[a.nat].you;
 const army = id => S.armies.find(a => a.id === id);
 const canAct = () => { const p = player(); return p && p.alive && S.phase === 'game'; };
 
-export function cmdMove(armyIds, provId) {
+export function cmdMove(armyIds, provId, append) {
   if (!canAct()) return fail('You cannot give orders now.');
-  let moved = 0; for (const id of armyIds) { const a = army(id); if (mine(a) && orderMove(a, provId)) moved++; }
+  let moved = 0; for (const id of armyIds) { const a = army(id); if (mine(a) && !a.retreat && orderMove(a, provId, append)) moved++; }
   return moved ? { ok: true, moved } : fail('No route there. You need to be at war with the owner, or a port or navy to cross the sea.');
 }
 export function cmdStop(id) { const a = army(id); if (!mine(a) || a.retreat) return fail('Cannot stop this army.'); a.path = []; a.prog = 0; return { ok: true }; }

@@ -41,7 +41,7 @@ function tabArmies(ui) {
   if (list.length === 1) {
     const a = list[0], others = mine ? S.armies.filter(o => o !== a && o.nat === a.nat && o.prov === a.prov && o.prog === 0 && !o.path.length) : [];
     const lim = mine ? G.recruitLimits() : null;
-    return `<div class="eyebrow">${mine ? 'Your army' : 'Army of ' + esc(n.name)}</div><h2>${chip(n)}${num(a.troops)} troops</h2>
+    return `<div class="eyebrow">${mine ? esc(G.armyName(a)) : esc(G.armyName(a)) + ' of ' + esc(n.name)}</div><h2>${chip(n)}${num(a.troops)} troops</h2>
       <dl>${row('Status', armyStatus(a))}${row('Troops', `${kfmt(a.troops * G.mixOf(a))} swordsmen · ${kfmt(a.troops * (1 - G.mixOf(a)))} spearmen`)}${row('Formation', `${Math.round(G.mixEff(G.mixOf(a)) * 100)}% of ideal <span class="sub">· 1:1 fills both rows</span>`, G.mixEff(G.mixOf(a)) < .9 ? 'neg' : '')}${row('Morale', `${Math.round(G.mor(a) * 100)}%${G.mor(a) < G.MORALE.broken ? ' · broken, will be destroyed if caught' : G.mor(a) < G.MORALE.siegeMin ? ' · too low to siege' : ''}`, G.mor(a) < G.MORALE.siegeMin ? 'neg' : '')}${row('Fighting strength', `×${G.quality(n).toFixed(2)} per soldier`)}${mine ? row('Upkeep', fmtGdp(a.troops * lim.upkeepPer) + ' a month') : ''}</dl>
       ${mine ? `<p class="hint">Right-click a province to march there. Discharged soldiers return half to your manpower pool.</p>
       <div class="btns">${btn('stop', a.id, 'Stop', { dis: !a.path.length || a.retreat })}${btn('split', a.id, 'Split in half', { dis: a.troops < G.MIN_ARMY() * 2 || a.path.length > 0 })}
@@ -51,8 +51,8 @@ function tabArmies(ui) {
   }
   const total = list.reduce((s, a) => s + a.troops, 0), sameProv = list.every(a => a.prov === list[0].prov && !a.path.length);
   return `<div class="eyebrow">${list.length} armies selected</div><h2>${chip(n)}${num(total)} troops</h2>
-    <div class="list">${list.map(a => `<button class="li" data-act="selArmy" data-arg="${a.id}"><span><b>${num(a.troops)}</b></span><span class="sub">${armyStatus(a)}</span></button>`).join('')}</div>
-    ${mine ? `<p class="hint">Right-click a province to send them all there.</p><div class="btns">${btn('stopAll', '', 'Stop all')}${sameProv ? btn('merge', list.map(a => a.id).join(','), 'Merge into one') : ''}${btn('deselect', '', 'Deselect')}</div>` : ''}`;
+    <div class="list">${list.map(a => `<button class="li" data-act="selArmy" data-arg="${a.id}"><span><b>${esc(G.armyName(a))}</b> · ${num(a.troops)} · ${Math.round(G.mor(a) * 100)}% morale</span><span class="sub">${armyStatus(a)}</span></button>`).join('')}</div>
+    ${mine ? `<p class="hint">Right-click a province to send them all there; Shift+right-click adds a waypoint.</p><div class="btns">${btn('stopAll', '', 'Stop all')}${sameProv ? btn('merge', list.map(a => a.id).join(','), 'Merge into one') : ''}${btn('deselect', '', 'Deselect')}</div>` : ''}`;
 }
 function terrainText(pr) {
   const B = D.biomes[pr.biome], y = k => B.y[k] === 0 ? 'none' : `×${B.y[k]}`;

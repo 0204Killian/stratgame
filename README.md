@@ -36,8 +36,8 @@ src/sim/              The simulation. Plain JavaScript with no DOM access, deter
 src/ui/               Everything the player sees
   app.js              Entry point, game clock, input, dialogs, save/load
   map.js              Map renderer and camera
-  panels.js           Side panel tabs
-  manage.js           Management screens over the map: Resources (G), Buildings (B), Army (M)
+  panels.js           Page contents (selection card, tribe, wars, research, nations, log)
+  manage.js           The page window: Tribe E, Resources G, Buildings B, Army M, Wars V, Research R, Nations N, Log L
   setup.js            The nation wheel
 tools/test-sim.mjs    Headless tests: long AI-only games and save/load determinism
 tools/build-win.sh    Builds the Windows zip by dropping the game into the official Electron runtime

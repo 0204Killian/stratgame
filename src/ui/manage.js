@@ -3,9 +3,10 @@
 import * as G from '../sim/game.js';
 import { S, D } from '../sim/game.js';
 import { num, kfmt, esc, chip, fmtGdp } from './format.js';
-import { armyStatus } from './panels.js';
+import { armyStatus, renderTab } from './panels.js';
 
-export const SCREENS = [{ k: 'res', n: 'Resources', key: 'G' }, { k: 'bld', n: 'Buildings', key: 'B' }, { k: 'army', n: 'Army', key: 'M' }];
+export const SCREENS = [{ k: 'econ', n: 'Tribe', key: 'E' }, { k: 'res', n: 'Resources', key: 'G' }, { k: 'bld', n: 'Buildings', key: 'B' }, { k: 'army', n: 'Army', key: 'M' },
+  { k: 'wars', n: 'Wars', key: 'V' }, { k: 'tech', n: 'Research', key: 'R' }, { k: 'nations', n: 'Nations', key: 'N' }, { k: 'log', n: 'Log', key: 'L' }];
 const btn = (act, arg, label, o = {}) => `<button data-act="${act}" data-arg="${arg ?? ''}" class="${o.cls || ''}" ${o.dis ? 'disabled' : ''} ${o.title ? `title="${esc(o.title)}"` : ''}>${label}</button>`;
 const card = (lab, val, sub, cls) => `<div class="mcard"><span class="eyebrow">${lab}</span><b class="${cls || ''}">${val}</b>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
 const pct = x => Math.round((x ?? 1) * 100) + '%';
@@ -23,12 +24,12 @@ function spark(arr, col) {
 }
 const myProvs = p => G.provsOf(p).filter(x => x.ctrl === p.id);
 
+export const manageHead = ui => { const s = SCREENS.find(x => x.k === ui.mg.tab) || SCREENS[0]; return `<div class="mhead"><nav class="mtabs"><button class="on">${s.n}<small>${s.key}</small></button></nav><button data-act="mgClose" class="mclose" title="Close (Esc)">Close</button></div>`; };
 export function renderManage(ui) {
   const p = G.player(); if (!p) return '';
-  const m = ui.mg;
-  const tabs = SCREENS.map(s => `<button data-act="mgTab" data-arg="${s.k}" class="${m.tab === s.k ? 'on' : ''}">${s.n}<small>${s.key}</small></button>`).join('');
-  const body = m.tab === 'bld' ? buildings(p, ui) : m.tab === 'army' ? army(p, ui) : resources(p, ui);
-  return `<div class="mhead"><nav class="mtabs">${tabs}</nav><span class="sub">${esc(p.name)}</span><button data-act="mgClose" class="mclose" title="Close (Esc)">Close</button></div><div class="mscroll">${body}</div>`;
+  const k = ui.mg.tab;
+  const body = k === 'bld' ? buildings(p, ui) : k === 'army' ? army(p, ui) : k === 'res' ? resources(p, ui) : `<div class="wbody">${renderTab({ ...ui, tab: k })}</div>`;
+  return `${manageHead(ui)}<div class="mscroll">${body}</div>`;
 }
 
 // ---------- Resources ----------

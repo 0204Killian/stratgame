@@ -84,32 +84,55 @@ export function edges(n, p, ocean = true) {
   if (seaOK(n) || (isPort(p) && p.ctrl === n.id) || (p.coastal && p.owner === n.id && hasPort(n))) for (const q of p.seaN) out.push(q);
   return out;
 }
+// Fastest route by marching days (Dijkstra), like EU4: armies go round mountains and forests when that is quicker.
 export function findPath(n, from, to) {
   if (from === to) return [];
-  const prev = new Map([[from, -1]]), q = [from];
-  for (let i = 0; i < q.length; i++) {
-    const c = q[i];
+  if (!canEnter(n.id, S.P[to]) && S.P[to].owner != null) return null;
+  const dist = new Map([[from, 0]]), prev = new Map(), done = new Set(), heap = [[0, from]];
+  const push = (d, v) => { heap.push([d, v]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  while (heap.length) {
+    const [d, c] = pop(); if (done.has(c)) continue; done.add(c);
+    if (c === to) { const path = []; let k = to; while (k !== from) { path.unshift(k); k = prev.get(k); } return path; }
     for (const nx of edges(n, S.P[c])) {
-      if (prev.has(nx)) continue;
-      if (!canEnter(n.id, S.P[nx])) { if (nx === to) return null; continue; }
-      prev.set(nx, c);
-      if (nx === to) { const path = []; let k = to; while (k !== from) { path.unshift(k); k = prev.get(k); } return path; }
-      q.push(nx);
+      if (done.has(nx) || !canEnter(n.id, S.P[nx])) continue;
+      const nd = d + legDays(n, c, nx);
+      if (nd < (dist.get(nx) ?? Infinity)) { dist.set(nx, nd); prev.set(nx, c); push(nd, nx); }
     }
   }
   return null;
 }
-export function hopDays(n, a, to) {
-  const from = S.P[a.prov], dest = S.P[to];
+// Days to march from one province to the next: terrain at the destination, sea crossings by distance, technology.
+export function legDays(n, fromId, to) {
+  const from = S.P[fromId], dest = S.P[to];
   let d = 6 + bio(dest).move;
   if (!from.landN.includes(to)) { const cells = Math.hypot(from.cx - dest.cx, from.cy - dest.cy) / (S.CS || 8); d = Math.max(d * 1.6, 4 + cells / 4); }
   if (has(n, 'logistics')) d *= .8; if (has(n, 'blitz')) d *= .5;
   return Math.max(1.5, d);
 }
-export function orderMove(a, to) {
-  const n = S.nations[a.nat], path = findPath(n, a.prov, to);
+export const hopDays = (n, a, to) => legDays(n, a.prov, to);
+// Days until an army reaches the end of its route (or a given step of it).
+export function etaDays(a, upTo) {
+  if (!a.path.length) return 0;
+  const n = S.nations[a.nat], end = upTo == null ? a.path.length : upTo + 1;
+  let d = (1 - a.prog) * a.hop;
+  for (let i = 1; i < end; i++) d += legDays(n, a.path[i - 1], a.path[i]);
+  return d;
+}
+export const routeDays = (n, from, path) => path.reduce((s, id, i) => s + legDays(n, i ? path[i - 1] : from, id), 0);
+// Order a march. With append, the new leg is added after the current route (a waypoint).
+// An army already part-way to the next province keeps going if the new route starts the same way.
+export function orderMove(a, to, append) {
+  const n = S.nations[a.nat];
+  if (append && a.path.length) {
+    const leg = findPath(n, a.path[a.path.length - 1], to); if (leg == null) return false;
+    a.path.push(...leg); return true;
+  }
+  const path = findPath(n, a.prov, to);
   if (path == null) return false;
-  a.path = path; a.prog = 0; a.retreat = false; if (path.length) a.hop = hopDays(n, a, path[0]);
+  const keep = a.prog > 0 && a.path.length && path[0] === a.path[0];
+  a.path = path; a.retreat = false;
+  if (!keep) { a.prog = 0; if (path.length) a.hop = hopDays(n, a, path[0]); }
   return true;
 }
 export const inBattle = pid => S.battles.some(b => b.prov === pid);

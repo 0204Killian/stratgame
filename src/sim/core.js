@@ -53,7 +53,8 @@ const ROMAN = ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 export function nameProvince(p, n) {
   if (p.named) return;
   const used = new Set(S.usedPlaces || (S.usedPlaces = [])), places = (D.cultures[n.culture] || {}).places || [];
-  let name = places.find(x => !used.has(x));
+  const free = places.filter(x => !used.has(x));
+  let name = free.length ? pick(free) : null;
   for (let r = 0; !name && r < ROMAN.length; r++) name = places.map(x => `${x} ${ROMAN[r]}`).find(x => !used.has(x));
   if (!name) name = `${n.name} ${p.id}`;
   p.name = name; p.named = true; S.usedPlaces.push(name);
