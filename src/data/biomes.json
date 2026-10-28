@@ -1,7 +1,73 @@
 {
- "plains": { "n": "Plains", "c": "#b9c46e", "y": { "farm": 1.25, "forestry": 0.6, "quarry": 0.7 }, "sub": 0.4, "width": 1, "def": 1, "move": 0, "d": "Good farmland, sparse woods" },
- "forest": { "n": "Forest", "c": "#5f9a5a", "y": { "farm": 0.7, "forestry": 1.5, "quarry": 0.8 }, "sub": 0.4, "width": 0.75, "def": 1.1, "move": 2, "d": "Rich timber, narrow battlefields" },
- "hills": { "n": "Hills", "c": "#b49a6a", "y": { "farm": 0.8, "forestry": 0.9, "quarry": 1.3 }, "sub": 0.35, "width": 0.65, "def": 1.15, "move": 2, "d": "Good stone, defensible" },
- "mountains": { "n": "Mountains", "c": "#c9c3b4", "y": { "farm": 0, "forestry": 0, "quarry": 1.6 }, "sub": 0.2, "width": 0.45, "def": 1.3, "move": 4, "siege": 1.6, "d": "Best stone; no farms or forestry; very defensible" },
- "desert": { "n": "Desert", "c": "#e2c98a", "y": { "farm": 0, "forestry": 0, "quarry": 1 }, "sub": 0.15, "width": 1, "def": 1, "move": 1, "d": "Stone only; no farms or forestry" }
+ "plains": {
+  "n": "Plains",
+  "c": "#b9c46e",
+  "y": {
+   "farm": 1.25,
+   "forestry": 0.6,
+   "quarry": 0.7
+  },
+  "sub": 0.25,
+  "width": 1,
+  "def": 1,
+  "move": 0,
+  "d": "Good farmland, sparse woods"
+ },
+ "forest": {
+  "n": "Forest",
+  "c": "#5f9a5a",
+  "y": {
+   "farm": 0.7,
+   "forestry": 1.5,
+   "quarry": 0.8
+  },
+  "sub": 0.3,
+  "width": 0.75,
+  "def": 1.1,
+  "move": 2,
+  "d": "Rich timber, narrow battlefields"
+ },
+ "hills": {
+  "n": "Hills",
+  "c": "#b49a6a",
+  "y": {
+   "farm": 0.8,
+   "forestry": 0.9,
+   "quarry": 1.3
+  },
+  "sub": 0.25,
+  "width": 0.65,
+  "def": 1.15,
+  "move": 2,
+  "d": "Good stone, defensible"
+ },
+ "mountains": {
+  "n": "Mountains",
+  "c": "#c9c3b4",
+  "y": {
+   "farm": 0,
+   "forestry": 0,
+   "quarry": 1.6
+  },
+  "sub": 0.1,
+  "width": 0.45,
+  "def": 1.3,
+  "move": 4,
+  "siege": 1.6,
+  "d": "Best stone; no farms or forestry; very defensible"
+ },
+ "desert": {
+  "n": "Desert",
+  "c": "#e2c98a",
+  "y": {
+   "farm": 0,
+   "forestry": 0,
+   "quarry": 1
+  },
+  "sub": 0.05,
+  "width": 1,
+  "def": 1,
+  "move": 1,
+  "d": "Stone only; no farms or forestry"
+ }
 }

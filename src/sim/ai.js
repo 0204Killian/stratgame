@@ -1,6 +1,6 @@
 // AI army orders. Each army re-plans once a week, staggered across the days so big maps don't stutter.
 // Searches are limited to nearby provinces; armies with nothing in range head home.
-import { S, D, quality, garrison, warsOf, enemyIn } from './core.js';
+import { S, D, quality, garrison, warsOf, enemyIn, popOf, provsOf } from './core.js';
 import { edges, canEnter, orderMove, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff } from './military.js';
 import { provValue } from './diplomacy.js';
 
@@ -15,6 +15,10 @@ function bfsDist(n, from) {
   return dist;
 }
 
+// Is another of this tribe's armies already settling (or marching to settle) free land?
+function settling(n, me) {
+  return S.armies.some(o => o !== me && o.nat === n.id && (o.path.length ? S.P[o.path[o.path.length - 1]].owner == null : S.P[o.prov].owner == null && S.P[o.prov].siege?.nat === n.id));
+}
 export function aiArmies() {
   const today = S.day % 7, bfsCache = new Map(), strength = new Map();
   for (const a of S.armies) {
@@ -51,7 +55,7 @@ export function aiArmies() {
         if (v > -1e9 && danger > myStr * .9) v -= 200;
         if (v > bv) { bv = v; best = pid; }
       }
-    } else {
+    } else if ((n.fed ?? 1) >= .95 && (n.warm ?? 1) >= .95 && popOf(n) * 1e6 >= (D.balance.settleCrowding || 150) * provsOf(n).length && !settling(n, a)) {   // settle new land one tile at a time, when fed, warm and crowded
       for (const [pid, d] of dist) {
         const p = S.P[pid];
         if (p.owner != null || d > 6 || a.troops < garrison(p) * 1.5 || !canColonise(n.id, p)) continue;

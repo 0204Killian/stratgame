@@ -54,7 +54,8 @@ body.setup-mode #main { grid-template-columns: minmax(0, 1fr); }
 .setupcard h1 { margin: 0; font: 700 40px/0.9 var(--display); text-transform: uppercase; }
 .setupopts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 8px 10px; align-items: end; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .setupopts .hint { grid-column: 1 / -1; margin: 0; }
-.opt { display: grid; gap: 4px; } .opt select { width: 100%; }
+.opt { display: grid; gap: 4px; } .opt select, .opt input { width: 100%; }
+.tribeopts { grid-template-columns: 1fr 1fr; }
 .wheelrow { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: center; }
 .wheelbox { position: relative; }
 #wheel { display: block; width: 230px; height: 230px; cursor: pointer; }
@@ -171,7 +172,8 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .toast.out { opacity: 0; transform: translateY(10px); }
 @keyframes tin { from { opacity: 0; transform: translateY(20px); } }
 
-@media (max-width: 1250px) { :root { --side: 340px; } .tbstats { gap: 12px; } .brand { display: none; } }
+@media (max-width: 1700px) { .brand { display: none; } }
+@media (max-width: 1250px) { :root { --side: 340px; } .tbstats { gap: 12px; } }
 @media (max-width: 980px) { .tbstats .stat:nth-child(n+4) { display: none; } }
 @media (prefers-reduced-motion: reduce) { .stamp.show { animation: none; opacity: 1; transform: translate(-50%,-50%) rotate(-7deg); } .toast { animation: none; } }
 

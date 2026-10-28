@@ -1,5 +1,5 @@
 // Armies, movement, battles, sieges, nuclear strikes.
-import { S, D, R, rnd, clamp, memo, YEAR, N, PN, log, emit, has, atWar, allied, warBetween, quality, garrison, isPort, unlockMedal } from './core.js';
+import { S, D, R, rnd, clamp, memo, YEAR, N, PN, log, emit, has, atWar, allied, warBetween, quality, garrison, isPort, unlockMedal, MIN_ARMY, nameProvince } from './core.js';
 
 // An army is a number of troops and a mix: the share that are swordsmen (front row); the rest are spearmen (back row).
 export function makeArmy(n, provId, troops, mix = .5) {
@@ -32,7 +32,7 @@ export function dailyAttrition() {
     if (!has1.has(a.nat)) a.troops *= 1 - .10 / 30;
     else if (p.ctrl != null && p.ctrl !== a.nat && atWar(a.nat, p.ctrl)) a.troops *= 1 - .02 / 30;
   }
-  S.armies = S.armies.filter(a => a.troops >= 300);
+  S.armies = S.armies.filter(a => a.troops >= MIN_ARMY());
 }
 export const seaOK = n => n.trait === 'navy' || has(n, 'carriers');
 const hasPort = n => memo('port' + n.id, () => S.P.some(q => q.owner === n.id && q.ctrl === n.id && isPort(q)));
@@ -141,7 +141,7 @@ export function dailyMilitary() {
     if (tr < garrison(p)) { if (p.siege && p.siege.nat === nat) p.siege = null; return; }   // too small to besiege
     if (!p.siege || p.siege.nat !== nat) p.siege = { nat, prog: 0 };
     const n = S.nations[nat], defender = p.ctrl != null ? S.nations[p.ctrl] : null;
-    let days = 26 * (bio(p).siege || 1) * (has(n, 'artillery') ? .6 : 1) * (1 + .35 * p.b.fort);
+    let days = (p.owner == null ? D.balance.coloniseDays || 120 : 26) * (bio(p).siege || 1) * (has(n, 'artillery') ? .6 : 1) * (1 + .35 * p.b.fort);
     if (defender && defender.trait === 'mount') days *= 1.3;
     if (defender && has(defender, 'radar')) days *= 1.4;
     p.siege.prog += Math.min(1.4, tr / (garrison(p) * 3)) / days;
@@ -166,7 +166,7 @@ export function siegeTarget(nid, p) {
 function completeSiege(p, nid) {
   const n = S.nations[nid]; p.siege = null; S.mapVersion++;
   if (p.owner == null) {
-    p.owner = nid; p.ctrl = nid;
+    p.owner = nid; p.ctrl = nid; nameProvince(p, n);
     log(`${N(n)} annexes the free province of ${PN(p)}.`, null, 2);
     if (n.you) { S.st.settled = (S.st.settled || 0) + 1; if (S.st.settled >= 5) unlockMedal('settler'); }
     return;
@@ -234,7 +234,7 @@ function battleDay(b) {
   b.cas.a += casA; b.cas.b += casD;
   const hit = (side, cas) => { const loss = cas / Math.max(1, side.N) * BATTLE.morPerCas + BATTLE.morDaily; for (const a of side.L) a.mor = Math.max(0, mor(a) - loss); return Math.max(0, side.mor - loss); };
   const mA = hit(A, casA), mD = hit(Dd, casD);
-  const aOut = mA <= BATTLE.beaten || A.N - casA < 300, dOut = mD <= BATTLE.beaten || Dd.N - casD < 300;
+  const aOut = mA <= BATTLE.beaten || A.N - casA < MIN_ARMY(), dOut = mD <= BATTLE.beaten || Dd.N - casD < MIN_ARMY();
   if (!aOut && !dOut && b.day < BATTLE.maxDays) return;
   const attWins = aOut === dOut ? mA > mD : dOut;
   endBattle(b, attWins ? at : de, attWins ? de : at, attWins ? Dd : A);
@@ -251,7 +251,7 @@ function endBattle(b, Wn, Ln, LS) {
   log(`Battle of ${PN(p)} (${b.day} day${b.day > 1 ? 's' : ''}): ${N(Wn)} defeats ${N(Ln)}. [[${Math.round(wLoss)} vs ${Math.round(lLoss)} dead]]`, null, (Wn.you || Ln.you) ? 5 : 3);
   if (loserBroken) { LS.L.forEach(a => { a.troops = 0; }); log(`${N(Ln)}'s army at ${PN(p)} was already broken and is destroyed.`, null, (Wn.you || Ln.you) ? 4 : 2); }
   else LS.L.forEach(a => retreat(a));
-  S.armies = S.armies.filter(a => a.troops >= 300);
+  S.armies = S.armies.filter(a => a.troops >= MIN_ARMY());
 }
 function retreat(a) {
   const n = S.nations[a.nat], q = [a.prov], prev = new Map([[a.prov, -1]]); let dest = null;
@@ -267,7 +267,7 @@ export function nukeReady(n) { return S.day - n.lastNuke > D.balance.nukeCooldow
 export function nuke(n, p) {
   n.lastNuke = S.day; p.devUntil = S.day + 8 * YEAR;
   const killed = p.pop * .6; p.pop -= killed; p.gdp *= .4; p.siege = null;
-  S.armies.forEach(a => { if (a.prov === p.id && a.prog === 0) a.troops *= .3; }); S.armies = S.armies.filter(a => a.troops >= 300);
+  S.armies.forEach(a => { if (a.prov === p.id && a.prog === 0) a.troops *= .3; }); S.armies = S.armies.filter(a => a.troops >= MIN_ARMY());
   const owner = p.owner != null ? S.nations[p.owner] : null;
   log(`${N(n)} launches a nuclear strike on ${PN(p)}${owner ? ` in ${N(owner)}` : ''}. ${fmtM(killed)} killed.`, 'bad', 10);
   if (owner) { const w = warBetween(n.id, owner.id); if (w) { const side = w.a === n.id ? 'a' : 'b'; w.bs[side] = Math.min(40, w.bs[side] + 15); } }

@@ -44,9 +44,9 @@ function tabArmies(ui) {
     return `<div class="eyebrow">${mine ? 'Your army' : 'Army of ' + esc(n.name)}</div><h2>${chip(n)}${num(a.troops)} troops</h2>
       <dl>${row('Status', armyStatus(a))}${row('Troops', `${kfmt(a.troops * G.mixOf(a))} swordsmen · ${kfmt(a.troops * (1 - G.mixOf(a)))} spearmen`)}${row('Formation', `${Math.round(G.mixEff(G.mixOf(a)) * 100)}% of ideal <span class="sub">· 1:1 fills both rows</span>`, G.mixEff(G.mixOf(a)) < .9 ? 'neg' : '')}${row('Morale', `${Math.round(G.mor(a) * 100)}%${G.mor(a) < G.MORALE.broken ? ' · broken, will be destroyed if caught' : G.mor(a) < G.MORALE.siegeMin ? ' · too low to siege' : ''}`, G.mor(a) < G.MORALE.siegeMin ? 'neg' : '')}${row('Fighting strength', `×${G.quality(n).toFixed(2)} per soldier`)}${mine ? row('Upkeep', fmtGdp(a.troops * lim.upkeepPer) + ' a month') : ''}</dl>
       ${mine ? `<p class="hint">Right-click a province to march there. Discharged soldiers return half to your manpower pool.</p>
-      <div class="btns">${btn('stop', a.id, 'Stop', { dis: !a.path.length || a.retreat })}${btn('split', a.id, 'Split in half', { dis: a.troops < 2000 || a.path.length > 0 })}
+      <div class="btns">${btn('stop', a.id, 'Stop', { dis: !a.path.length || a.retreat })}${btn('split', a.id, 'Split in half', { dis: a.troops < G.MIN_ARMY() * 2 || a.path.length > 0 })}
       ${others.length ? btn('merge', [a.id, ...others.map(o => o.id)].join(','), `Merge ${others.length} here`) : ''}
-      ${btn('dis25', a.id, 'Discharge 25%', { dis: a.troops < 2000 })}${btn('disband', a.id, ui.confirm === 'disband:' + a.id ? 'Confirm disband' : 'Disband', { cls: 'danger' })}</div>` : ''}
+      ${btn('dis25', a.id, 'Discharge 25%', { dis: a.troops < G.MIN_ARMY() * 2 })}${btn('disband', a.id, ui.confirm === 'disband:' + a.id ? 'Confirm disband' : 'Disband', { cls: 'danger' })}</div>` : ''}
       <div class="btns">${btn('selProv', a.prov, 'Open province')}${btn('deselect', '', 'Deselect')}</div>`;
   }
   const total = list.reduce((s, a) => s + a.troops, 0), sameProv = list.every(a => a.prov === list[0].prov && !a.path.length);
@@ -142,7 +142,7 @@ function tabProvince(ui) {
 
 // ---------- Economy (built once, then updated in place so sliders keep working while dragging) ----------
 export function buildEcon() {
-  return `<h2>Economy and army</h2>
+  return `<h2>Tribe and war band</h2>
   <div class="budget">
     <div class="brow"><span>Treasury</span><b id="eTreas"></b></div>
     <div class="brow"><span>Taxes</span><b id="eInc" class="pos"></b></div>
@@ -158,6 +158,7 @@ export function buildEcon() {
   <h3>Food and industry</h3>
   <div class="budget">
     <div class="brow"><span>People fed with bread</span><b id="eFed"></b></div>
+    <div class="brow"><span>Homes with firewood</span><b id="eWarm"></b></div>
     <div class="brow"><span>Stone tools supplied</span><b id="eTools"></b></div>
     <div class="brow"><span>Workers employed</span><b id="eEmp"></b></div>
   </div>
@@ -182,11 +183,11 @@ export function recruitInfo(ui) {
   const ps = G.provsOf(p).filter(q => q.ctrl === p.id);
   if (ui.recProv == null || !ps.some(q => q.id === ui.recProv)) ui.recProv = ps.some(q => q.id === p.cap) ? p.cap : (ps[0] ? ps[0].id : null);
   const el = document.getElementById('rTroops'), frac = el ? +el.value / 1000 : .25, mx = document.getElementById('rMix'), mix = mx ? +mx.value / 100 : .5;
-  let tr = Math.min(lim.max, Math.max(1000, Math.round(lim.max * frac / 100) * 100));
+  let tr = Math.min(lim.max, Math.max(G.MIN_ARMY(), Math.round(lim.max * frac)));
   let sw = Math.min(Math.round(tr * mix), lim.swords), sp = Math.min(tr - Math.round(tr * mix), lim.spears);
   tr = sw + sp;
   const cost = tr * lim.costPer, up = tr * lim.upkeepPer;
-  return { ...lim, tr, sw, sp, mix, cost, up, ps, prov: ui.recProv, ok: tr >= 1000 && p.treasury >= cost && ui.recProv != null && !S.result };
+  return { ...lim, tr, sw, sp, mix, cost, up, ps, prov: ui.recProv, ok: tr >= G.MIN_ARMY() && p.treasury >= cost && ui.recProv != null && !S.result };
 }
 export function updateEcon(ui) {
   const p = G.player(); if (!p || !document.getElementById('eTreas')) return;
@@ -208,12 +209,12 @@ export function updateEcon(ui) {
   const r = recruitInfo(ui), sig = r.ps.map(q => q.id).join(',');
   if ($('rProv').dataset.sig !== sig) { $('rProv').innerHTML = r.ps.map(q => `<option value="${q.id}">${esc(q.name)}${q.id === p.cap ? ' (capital)' : ''}</option>`).join(''); $('rProv').dataset.sig = sig; }
   if (r.prov != null && document.activeElement !== $('rProv') && +$('rProv').value !== r.prov) $('rProv').value = r.prov;
-  set('vTroops', r.max >= 1000 ? num(r.tr) : '—'); set('vMix', Math.round(r.mix * 100) + '%');
-  const why = G.troopsOf(p) >= fl ? 'You are at your force limit. Raise conscription or discharge troops.' : p.manpower < 1000 ? 'Not enough manpower yet. It refills a little every day.' : 'Not enough swords or spears. Build swordsmiths and spearsmiths.';
-  set('rInfo', r.max < 1000 ? why : `${num(r.sw)} swordsmen and ${num(r.sp)} spearmen. In store: ${num(r.swords)} swords, ${num(r.spears)} spears. Costs ${fmtGdp(r.cost)} now and ${fmtGdp(r.up)} a month.${p.treasury < r.cost ? ' Not enough money.' : ''}`);
-  $('rGo').disabled = !r.ok; $('rTroops').disabled = r.max < 1000;
+  set('vTroops', r.max >= G.MIN_ARMY() ? num(r.tr) : '—'); set('vMix', Math.round(r.mix * 100) + '%');
+  const why = G.troopsOf(p) >= fl ? 'You are at your force limit. Raise conscription or discharge troops.' : p.manpower < G.MIN_ARMY() ? 'Not enough manpower yet. It refills a little every day.' : 'Not enough swords or spears. Build swordsmiths and spearsmiths.';
+  set('rInfo', r.max < G.MIN_ARMY() ? why : `${num(r.sw)} swordsmen and ${num(r.sp)} spearmen. In store: ${num(r.swords)} swords, ${num(r.spears)} spears. Costs ${fmtGdp(r.cost)} now and ${fmtGdp(r.up)} a month.${p.treasury < r.cost ? ' Not enough money.' : ''}`);
+  $('rGo').disabled = !r.ok; $('rTroops').disabled = r.max < G.MIN_ARMY();
   const ps = G.provsOf(p).filter(q => q.ctrl === p.id), wf = ps.reduce((s, q) => s + G.workforce(q), 0), wk = ps.reduce((s, q) => s + (q.work || 0), 0);
-  set('eFed', Math.round((p.fed ?? 1) * 100) + '%', (p.fed ?? 1) < .95 ? 'neg' : 'pos'); set('eTools', Math.round((p.toolSat ?? 1) * 100) + '%', (p.toolSat ?? 1) < .95 ? 'neg' : '');
+  set('eFed', Math.round((p.fed ?? 1) * 100) + '%', (p.fed ?? 1) < .95 ? 'neg' : 'pos'); set('eWarm', Math.round((p.warm ?? 1) * 100) + '%', (p.warm ?? 1) < .95 ? 'neg' : 'pos'); set('eTools', Math.round((p.toolSat ?? 1) * 100) + '%', (p.toolSat ?? 1) < .95 ? 'neg' : '');
   set('eEmp', `${kfmt(wk)} of ${kfmt(wf)} · ${Math.round(wk / Math.max(1, wf) * 100)}%`);
   const f = p.flow || { prod: {}, use: {} };
   const st = `<div class="sth"><span>Goods</span><span>Stock</span><span>Made/wk</span><span>Used/wk</span></div>` + G.GOODS().map(g => {

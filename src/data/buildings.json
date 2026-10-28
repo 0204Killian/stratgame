@@ -3,28 +3,28 @@
   "n": "Farm",
   "kind": "raw",
   "c": "#9ccc54",
-  "jobs": 50000,
-  "tools": 2000,
+  "jobs": 20,
+  "tools": 0.8,
   "methods": [
    {
     "k": "wheat",
     "n": "Wheat",
     "out": {
-     "wheat": 400000
+     "wheat": 160
     }
    },
    {
     "k": "fiber",
     "n": "Fiber",
     "out": {
-     "fiber": 250000
+     "fiber": 100
     }
    }
   ],
   "cost": {
-   "wood": 5000
+   "wood": 2
   },
-  "builders": 20000,
+  "builders": 8,
   "weeks": 8,
   "d": "Grows wheat or fiber"
  },
@@ -32,13 +32,13 @@
   "n": "Forestry",
   "kind": "raw",
   "c": "#5f9a5a",
-  "jobs": 40000,
-  "tools": 2000,
+  "jobs": 16,
+  "tools": 0.8,
   "out": {
-   "wood": 200000
+   "wood": 80
   },
   "cost": {},
-  "builders": 15000,
+  "builders": 6,
   "weeks": 6,
   "d": "Fells timber"
  },
@@ -46,13 +46,13 @@
   "n": "Quarry",
   "kind": "raw",
   "c": "#b8b6ad",
-  "jobs": 40000,
-  "tools": 3000,
+  "jobs": 16,
+  "tools": 1.2,
   "out": {
-   "stone": 150000
+   "stone": 60
   },
   "cost": {},
-  "builders": 15000,
+  "builders": 6,
   "weeks": 8,
   "d": "Cuts stone"
  },
@@ -60,19 +60,19 @@
   "n": "Stone toolsmith",
   "kind": "proc",
   "c": "#8fb3c9",
-  "jobs": 10000,
+  "jobs": 4,
   "in": {
-   "stone": 6000,
-   "wood": 4000
+   "stone": 2.4,
+   "wood": 1.6
   },
   "out": {
-   "tools": 10000
+   "tools": 4
   },
   "cost": {
-   "wood": 5000,
-   "stone": 10000
+   "wood": 2,
+   "stone": 4
   },
-  "builders": 10000,
+  "builders": 4,
   "weeks": 6,
   "d": "Makes the stone tools farms, forestry and quarries work with"
  },
@@ -80,19 +80,19 @@
   "n": "Bread bakery",
   "kind": "proc",
   "c": "#f0a35a",
-  "jobs": 30000,
+  "jobs": 12,
   "in": {
-   "wheat": 1000000,
-   "wood": 50000
+   "wheat": 400,
+   "wood": 20
   },
   "out": {
-   "bread": 1000000
+   "bread": 400
   },
   "cost": {
-   "wood": 10000,
-   "stone": 20000
+   "wood": 4,
+   "stone": 8
   },
-  "builders": 20000,
+  "builders": 8,
   "weeks": 8,
   "d": "Bakes wheat into bread, burning wood"
  },
@@ -100,19 +100,19 @@
   "n": "Swordsmith",
   "kind": "proc",
   "c": "#e07a6a",
-  "jobs": 10000,
+  "jobs": 4,
   "in": {
-   "stone": 4000,
-   "wood": 2000
+   "stone": 1.6,
+   "wood": 0.8
   },
   "out": {
-   "swords": 2000
+   "swords": 0.8
   },
   "cost": {
-   "wood": 5000,
-   "stone": 10000
+   "wood": 2,
+   "stone": 4
   },
-  "builders": 10000,
+  "builders": 4,
   "weeks": 8,
   "d": "Arms swordsmen, the front row"
  },
@@ -120,19 +120,19 @@
   "n": "Spearsmith",
   "kind": "proc",
   "c": "#d6cf6a",
-  "jobs": 10000,
+  "jobs": 4,
   "in": {
-   "wood": 3000,
-   "stone": 1000
+   "wood": 1.2,
+   "stone": 0.4
   },
   "out": {
-   "spears": 3000
+   "spears": 1.2
   },
   "cost": {
-   "wood": 5000,
-   "stone": 10000
+   "wood": 2,
+   "stone": 4
   },
-  "builders": 10000,
+  "builders": 4,
   "weeks": 6,
   "d": "Arms spearmen, the back row"
  },
@@ -142,10 +142,10 @@
   "c": "#d6cfb8",
   "max": 3,
   "cost": {
-   "stone": 150000,
-   "wood": 40000
+   "stone": 60,
+   "wood": 16
   },
-  "builders": 40000,
+  "builders": 16,
   "weeks": 16,
   "d": "+50% garrison, slower sieges, +8% defence per level"
  },
@@ -156,10 +156,10 @@
   "max": 1,
   "coast": true,
   "cost": {
-   "wood": 120000,
-   "stone": 40000
+   "wood": 48,
+   "stone": 16
   },
-  "builders": 30000,
+  "builders": 12,
   "weeks": 16,
   "d": "Acts as a port: armies can cross sea routes"
  }

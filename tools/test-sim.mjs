@@ -15,7 +15,7 @@ G.init(data);
 const hash = o => crypto.createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 12);
 function setupGame(seed, nations, goal, diff, mapSize = 'small') {
   G.newGame({ seed, nations, goal, diff, mapSize });
-  for (let i = 0; i < nations; i++) G.foundNation(G.randomDraft(), i, i === 0);
+  G.setupTribes({ name: 'Test tribe', culture: 'irish' });
   G.startGame(); G.setAutoPlayer(true);
 }
 function run(days) {

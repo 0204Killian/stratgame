@@ -39,13 +39,26 @@ export function log(m, cls, score) {
   emit('log', e);
 }
 export const yearOf = d => Math.floor(d / YEAR) + 1;
-export function newNationName() {
-  const free = D.names.nations.filter(x => !S.usedNames.includes(x));
+// A tribe name from a culture's list; falls back to any culture, then numbered names.
+export function newTribeName(culture) {
+  const own = (D.cultures[culture] || {}).tribes || [], free = own.filter(x => !S.usedNames.includes(x));
   if (free.length) return pick(free);
-  const { pre, suf } = D.names.nationParts;
-  for (let i = 0; i < 200; i++) { const n = pick(pre) + pick(suf); if (!S.usedNames.includes(n)) return n; }
-  return `Nation ${S.nations.length + 1}`;
+  const any = Object.values(D.cultures).flatMap(c => c.tribes).filter(x => !S.usedNames.includes(x));
+  if (any.length) return pick(any);
+  return `Tribe ${S.nations.length + 1}`;
 }
+export const newNationName = () => newTribeName(pick(Object.keys(D.cultures)));
+// Tiles have no name until a tribe settles them; then they take a place name from that tribe's culture.
+const ROMAN = ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+export function nameProvince(p, n) {
+  if (p.named) return;
+  const used = new Set(S.usedPlaces || (S.usedPlaces = [])), places = (D.cultures[n.culture] || {}).places || [];
+  let name = places.find(x => !used.has(x));
+  for (let r = 0; !name && r < ROMAN.length; r++) name = places.map(x => `${x} ${ROMAN[r]}`).find(x => !used.has(x));
+  if (!name) name = `${n.name} ${p.id}`;
+  p.name = name; p.named = true; S.usedPlaces.push(name);
+}
+export const MIN_ARMY = () => D.balance.minArmy || 5;
 export function addDecision(d) { d.id = S.nextDecId++; S.decisions.push(d); emit('decision', d); return d; }
 export function unlockMedal(k) { if (!S.st.medals) S.st.medals = []; if (!S.st.medals.includes(k)) { S.st.medals.push(k); emit('medal', k); } }
 
@@ -84,7 +97,7 @@ export const enemyIn = (w, id) => w.a === id ? w.b : w.a;
 export const allied = (x, y) => S.nations[x].allies.includes(y);
 export const truceWith = (x, y) => (S.nations[x].truce[y] || -1) > S.day;
 export const isPort = p => p.res === 'port' || p.b.harbour > 0;
-export const garrison = p => Math.max(1500, p.pop * 1e6 * (p.owner == null ? .004 : .003)) * (1 + .5 * p.b.fort);
+export const garrison = p => Math.max(MIN_ARMY(), Math.round(p.pop * 1e6 * (p.owner == null ? .05 : .03))) * (1 + .5 * p.b.fort);
 export const upkeepMult = n => (has(n, 'logistics') ? .5 : 1) * n.maint;
 export function monthlyIncome(n) {
   let inc = 0; for (const p of S.P) if (p.owner === n.id && p.ctrl === n.id) inc += p.gdp * n.tax / 12;

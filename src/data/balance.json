@@ -1,7 +1,7 @@
 {
  "month": 30,
  "year": 360,
- "upkeep": 2.5e-05,
+ "upkeep": 5e-06,
  "truceYears": 3,
  "nukeCooldownYears": 3,
  "maxYears": 120,
@@ -78,6 +78,19 @@
    "spearsmith",
    "swordsmith"
   ],
-  "toolMinOutput": 0.5
- }
+  "toolMinOutput": 0.5,
+  "woodPerPerson": 0.1
+ },
+ "minArmy": 5,
+ "startPop": [
+  300,
+  600
+ ],
+ "freePop": [
+  0,
+  300
+ ],
+ "startMil": 10,
+ "coloniseDays": 240,
+ "settleCrowding": 150
 }

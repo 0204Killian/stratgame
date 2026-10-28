@@ -197,7 +197,7 @@ export function aiDiplomacy() {
     if (!n.alive || n.you || warsOf(n.id).length) continue;
     let agg = gov(n).agg + leader(n).agg; if (n.leader === 'senile') agg += (R() - .33) * .6;
     if (n.grudge != null && n.grudgeUntil > S.day) agg += .4;
-    if (R() > agg * .05) continue;
+    if (R() > agg * .02) continue;
     const my = troopsOf(n);
     let cands = neighbours(n).filter(t => !n.allies.includes(t.id) && !truceWith(n.id, t.id) && !atWar(n.id, t.id));
     if (p && S.day < D.difficulties[S.diff].grace * YEAR) cands = cands.filter(t => !t.you);

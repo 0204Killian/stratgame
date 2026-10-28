@@ -1,4 +1,4 @@
-import { S, D, popOf, gdpOf, forceLimit } from './core.js';
+import { S, D, popOf, gdpOf, forceLimit, nameProvince, MIN_ARMY } from './core.js';
 import { makeArmy } from './military.js';
 import { startingEconomy, emptyStock } from './industry.js';
 
@@ -8,10 +8,10 @@ function hslHex(h, s, l) {
 }
 export function nextColor() { const i = S.nations.length; return D.names.colors[i] || hslHex((i * 137.5) % 360, .55, .6); }
 
-// d: {name, gov, popM, milPct, gdp, trait, leader} using data keys
+// d: {name, culture, gov, popM, milPct, gdp, trait, leader} using data keys
 export function createNation(d, provIds, you, opts = {}) {
   const n = {
-    id: S.nations.length, name: d.name, gov: d.gov, milPct: d.milPct, trait: d.trait, leader: d.leader,
+    id: S.nations.length, name: d.name, culture: d.culture, gov: d.gov, milPct: d.milPct, trait: d.trait, leader: d.leader,
     color: nextColor(), cap: provIds[0], allies: [], truce: {}, alive: true, you: !!you,
     tax: D.balance.startTax, maint: 1, techs: [], rp: 0, lastNuke: -99999, grudge: null, grudgeUntil: -1,
     rebel: !!opts.rebel, lastAsk: -99999, treasury: 0, manpower: 0, stock: emptyStock(), fed: 1
@@ -23,16 +23,16 @@ export function createNation(d, provIds, you, opts = {}) {
     const w = provIds.map((id, i) => i === 0 ? 2 : 1), ws = w.reduce((a, b) => a + b, 0);
     provIds.forEach((id, i) => { const p = S.P[id]; p.owner = n.id; p.ctrl = n.id; p.pop = d.popM * w[i] / ws; p.gdp = d.gdp * w[i] / ws; p.siege = null; });
   }
+  for (const id of provIds) nameProvince(S.P[id], n);
   if (!opts.keepPop) startingEconomy(n, provIds);
   n.startGdp = gdpOf(n); n.startPop = popOf(n);
   const fl = forceLimit(n);
   n.stock.swords += fl * .1; n.stock.spears += fl * .1;
-  if (opts.keepPop) { n.stock.bread = popOf(n) * 1e6 * 2; n.stock.wood = n.stock.stone = 50000; }
+  if (opts.keepPop) { n.stock.bread = popOf(n) * 1e6 * 2; n.stock.wood = n.stock.stone = popOf(n) * 1e6 * .2; }
   n.treasury = opts.treasury ?? gdpOf(n) * .15;
   n.manpower = fl * .25;
-  // Start with an army the economy can actually pay for (at most 60% of the force limit).
-  const affordable = gdpOf(n) * n.tax / D.balance.upkeep * .7;
-  const a0 = makeArmy(n, provIds[0], opts.troops ?? Math.min(fl * .6, Math.max(5000, affordable)));
+  // A war band: most of the tribe's fighting men.
+  const a0 = makeArmy(n, provIds[0], opts.troops ?? Math.max(MIN_ARMY(), Math.round(fl * .6)));
   if (!opts.keepPop) a0.mor = 1;   // a trained standing army
   S.mapVersion++;
   return n;

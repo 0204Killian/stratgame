@@ -1,12 +1,13 @@
 // Monthly economy, growth, construction, recruitment, research and internal politics.
-import { S, D, R, pick, rnd, newNationName, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar } from './core.js';
+import { S, D, R, pick, rnd, newTribeName, MIN_ARMY, MONTH, YEAR, UPKEEP, N, PN, log, emit, gov, has, devastated, stab, hasNuke, forceLimit, techCost, techExtra, techAvail, researchPerMonth, provsOf, gdpOf, armiesOf, troopsOf, monthlyIncome, warsOf, enemyIn, neighbours, atWar } from './core.js';
 import { makeArmy, nuke, nukeReady, orderMove, reinforce, mixOf, MORALE } from './military.js';
 import { weeklyProduction, weeklyConstruction, biome, aiPlanEconomy } from './industry.js';
 import { declareWar, warScore, payReparations } from './diplomacy.js';
 import { createNation } from './nation.js';
 
+export const ERA_GOVS = ['tribal', 'monarchy', 'theocracy', 'anarchy'];   // governments that fit an early age
 export function revolt(n) {
-  const old = gov(n); n.gov = pick(D.governments.filter(g => g.k !== n.gov)).k; n.leader = pick(D.leaders).k;
+  const old = gov(n); n.gov = pick(ERA_GOVS.filter(k => k !== n.gov)); n.leader = pick(D.leaders).k;
   for (const x of n.allies) S.nations[x].allies = S.nations[x].allies.filter(y => y !== n.id); n.allies = [];
   provsOf(n).forEach(p => p.gdp *= .9);
   log(`Revolution in ${N(n)}. The ${old.n.toLowerCase()} falls and a ${gov(n).n.toLowerCase()} takes over.`, 'big', 6);
@@ -17,14 +18,15 @@ function breakaway(n) {
   const others = p.landN.map(i => S.P[i]).filter(q => q.owner === n.id && q.id !== n.cap && q.ctrl === n.id && R() < .5);
   const ids = [p.id, ...others.slice(0, 1).map(q => q.id)];
   S.armies.filter(a => ids.includes(a.prov) && a.nat === n.id).forEach(a => orderMove(a, n.cap));
-  const name = newNationName();
-  const d = { name, gov: pick(D.governments.filter(g => g.k !== n.gov)).k, milPct: n.milPct, trait: pick(D.traits).k, leader: pick(D.leaders).k };
+  const name = newTribeName(n.culture);
+  const d = { name, culture: n.culture, gov: pick(ERA_GOVS.filter(k => k !== n.gov)), milPct: n.milPct, trait: pick(ERA_TRAITS()).k, leader: pick(D.leaders).k };
   const pop = ids.reduce((s, i) => s + S.P[i].pop, 0);
   const reb = createNation(d, ids, false, { keepPop: true, rebel: true, troops: pop * 1e6 * n.milPct / 100 * .6, treasury: 2 });
   declareWar(n, reb, true);
   log(`Civil war in ${N(n)}! ${ids.map(i => PN(S.P[i])).join(' and ')} break away as ${N(reb)}.`, 'big', 7);
 }
 const auto = n => !n.you || S.st.autoPlayer;
+export const ERA_TRAITS = () => D.traits.filter(t => t.k !== 'nuke' && t.k !== 'oil');
 
 // Weekly: income, upkeep, reparations; desertion while in debt. Rates are monthly, paid in weekly slices.
 export function weeklyNation(n, ps) {
@@ -63,12 +65,17 @@ export function monthlyNation(n) {
   // Population follows food: bread from the stockpile, topped up by subsistence farming that depends on the land.
   for (const p of provsOf(n)) {
     if (devastated(p)) continue;
-    const occ = p.ctrl !== n.id, fed = occ ? 0 : (n.fed ?? 1), sat = fed + (1 - fed) * biome(p).sub;
-    const g = .004 * (sat - .7) - Math.max(0, n.milPct - 4) * .00008;
-    p.pop *= 1 + g;
-    p.gdp *= 1 + g + (occ ? -.002 : .0012 + ((p.emp || 0) - .45) * .004 + (has(n, 'industry') ? .0015 : 0) + (n.trait === 'oil' ? .0008 : 0) + (!n.you && S.diff === 'hard' ? .0008 : 0) + rnd(-.002, .002) + p.b.harbour * .0004 - (n.tax - .15) * .012 - Math.max(0, n.milPct - 3) * .0002);
+    // people need bread and firewood; subsistence covers part of a shortfall
+    const occ = p.ctrl !== n.id, got = occ ? 0 : Math.min(n.fed ?? 1, n.warm ?? 1), sat = got + (1 - got) * biome(p).sub;
+    const g = .006 * (sat - .7) - Math.max(0, n.milPct - 12) * .00008;
+    const before = p.pop; p.pop *= 1 + g;
+    // settlers drift into near-empty land of a well-fed tribe
+    if (!occ && sat > .95 && p.pop * 1e6 < 40) p.pop += rnd(1, 4) / 1e6;
+    p.gdp = Math.max(p.gdp, p.pop * 2);
+    p.gdp *= (before > 0 ? p.pop / before : 1) + (occ ? -.002 : .0012 + ((p.emp || 0) - .45) * .004 + (has(n, 'industry') ? .0015 : 0) + (n.trait === 'oil' ? .0008 : 0) + (!n.you && S.diff === 'hard' ? .0008 : 0) + rnd(-.002, .002) + p.b.harbour * .0004 - (n.tax - .15) * .012 - Math.max(0, n.milPct - 3) * .0002);
   }
   if (n.you && n.fed < .6 && R() < .5) log(`${N(n)} is short of bread: only ${Math.round(n.fed * 100)}% of the people are fed. Build farms and bakeries.`, 'bad', 4);
+  if (n.you && (n.warm ?? 1) < .6 && R() < .5) log(`${N(n)} is short of firewood: only ${Math.round(n.warm * 100)}% of homes have fuel. Build forestry.`, 'bad', 4);
   if (auto(n)) aiEconomy(n, forceLimit(n));
   // research
   n.rp += researchPerMonth(n);
@@ -85,9 +92,9 @@ function aiEconomy(n, fl) {
   // Armies can only be raised in land you hold: the capital if you control it, otherwise your most populous controlled province.
   const held = S.P[n.cap].ctrl === n.id ? S.P[n.cap] : provsOf(n).filter(p => p.ctrl === n.id).sort((x, y) => y.pop - x.pop)[0];
   const spawn = held ? held.id : null;
-  if (spawn != null && (t < fl * .5 || !armiesOf(n).length) && n.manpower > Math.min(fl * .08, 20000) && n.treasury > 0) {
+  if (spawn != null && (t < fl * .5 || !armiesOf(n).length) && n.manpower > Math.max(MIN_ARMY(), fl * .08) && n.treasury > 0) {
     const { sw, sp } = armTroops(n, Math.min(n.manpower, fl * .3)), tr = sw + sp, c = tr * UPKEEP * 1.5;
-    if (tr >= 1000 && (n.treasury >= c || !armiesOf(n).length)) {
+    if (tr >= MIN_ARMY() && (n.treasury >= c || !armiesOf(n).length)) {
       n.manpower -= tr; n.treasury -= c; n.stock.swords -= sw; n.stock.spears -= sp;
       const home = armiesOf(n).find(a => a.prov === spawn && !a.path.length && a.prog === 0);
       if (home) reinforce(home, tr, MORALE.recruit, sw / tr); else makeArmy(n, spawn, tr, sw / tr);

@@ -4,7 +4,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 export const num = v => Math.round(v).toLocaleString('en-IE');
 export const kfmt = v => v >= 1e6 ? (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(Math.round(v));
 export const fmtPop = m => num(m * 1e6);
-export const fmtGdp = b => { const a = Math.abs(b), s = b < 0 ? '−' : ''; return s + (a >= 1000 ? '$' + (a / 1000).toFixed(2) + 'T' : a >= 100 ? '$' + Math.round(a) + 'B' : a >= 1 ? '$' + a.toFixed(1) + 'B' : '$' + Math.round(a * 1000) + 'M'); };
+export const fmtGdp = b => { const a = Math.abs(b), s = b < 0 ? '−' : ''; return s + (a >= 1000 ? '$' + (a / 1000).toFixed(2) + 'T' : a >= 100 ? '$' + Math.round(a) + 'B' : a >= 1 ? '$' + a.toFixed(1) + 'B' : a >= .1 ? '$' + Math.round(a * 1000) + 'M' : a >= .001 ? '$' + (a * 1000).toFixed(a >= .01 ? 1 : 2) + 'M' : a >= 1e-6 ? '$' + Math.round(a * 1e6) + 'k' : '$' + Math.round(a * 1e9)); };
 export const fmtPct = p => (Math.round(p * 10) / 10) + '%';
 export const dateStr = d => { const y = Math.floor(d / YEAR) + 1, m = Math.floor((d % YEAR) / MONTH), dd = d % MONTH + 1; return `${dd} ${MONTHS[m]}, Year ${y}`; };
 export const shortDate = d => { const y = Math.floor(d / YEAR) + 1, m = Math.floor((d % YEAR) / MONTH); return `${MONTHS[m]} Y${y}`; };

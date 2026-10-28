@@ -9,7 +9,7 @@ import { platform } from './platform.js';
 import { sound, sfx, unlockAudio } from './audio.js';
 import { num, kfmt, fmtGdp, dateStr, esc, chip, fmtMsg, plainMsg } from './format.js';
 
-const DATA_FILES = ['balance', 'governments', 'setup', 'traits', 'leaders', 'biomes', 'goods', 'buildings', 'techs', 'goals', 'difficulties', 'medals', 'names'];
+const DATA_FILES = ['balance', 'governments', 'setup', 'traits', 'leaders', 'biomes', 'goods', 'buildings', 'cultures', 'techs', 'goals', 'difficulties', 'medals', 'names'];
 const SPEED_MS = [0, 500, 240, 110, 45, 12];
 const $ = id => document.getElementById(id);
 
@@ -48,7 +48,7 @@ function applySettings() {
 // ---------- callbacks used by Setup ----------
 const app = {
   onWorld() {
-    ui.forceBase = true; ui.setup = S.phase === 'setup' ? { curSlot: setup ? setup.slot : 0 } : null;
+    ui.forceBase = true; ui.setup = S.phase === 'setup' ? {} : null;
     if (map && S.phase === 'setup' && map.ensureWorld()) { map.limits(); const cw = $('setup').offsetWidth + 32; map.fitRect(0, 0, Math.max(300, map.cw - cw), map.ch); }
   },
   onSetupDone() { G.startGame(); enterGame(); },
@@ -64,7 +64,7 @@ function enterGame() {
   lastYear = G.yearOf(S.day);
   map.ensureWorld(); map.limits();
   const p = G.player(); if (p) { const c = S.P[p.cap]; map.centerOn(c.cx, c.cy, Math.max(map.minZoom * 2, 1.8)); }
-  showRibbon('Press Play or Space to start the clock. Left-click your army (gold outline), then right-click a province to march. Use the tabs on the right to manage your nation.', 9000);
+  showRibbon('Your tribe is settled. Press Play or Space to start the clock. Click your home tile to see its fields and workshops. Feed your people bread and keep them in firewood; send your war band to settle unclaimed land nearby.', 10000);
   renderSpeed(); renderTabs(); refreshPanel(true); renderTopbar();
 }
 
@@ -136,7 +136,8 @@ function renderTopbar() {
   set('tIncome', (m.net >= 0 ? '+' : '') + fmtGdp(m.net), m.net < 0);
   set('tArmy', `${kfmt(tr)} / ${kfmt(fl)}`, tr > fl);
   set('tManpower', kfmt(p.manpower));
-  set('tFood', Math.round((p.fed ?? 1) * 100) + '% fed', (p.fed ?? 1) < .95);
+  const food = Math.min(p.fed ?? 1, p.warm ?? 1); set('tFood', Math.round(food * 100) + '%', food < .95);
+  set('tPop', G.popOf(p) * 1e6 >= 1e4 ? kfmt(G.popOf(p) * 1e6) : num(G.popOf(p) * 1e6));
   const ready = S.techOffers.length && p.rp >= G.techCost(p);
   set('tResearch', ready ? 'Ready!' : `${Math.floor(p.rp / G.techCost(p) * 100)}%`);
   $('tResearch').classList.toggle('pos', !!ready);

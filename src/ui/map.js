@@ -132,7 +132,7 @@ export class MapView {
     g.drawImage(this.terrain, 0, 0);
     // province colours via one pixel per cell, scaled up
     const slotOf = new Map();
-    if (setup) S.slots.forEach((sl, i) => { if (i >= S.nations.length) sl.forEach(id => slotOf.set(id, i === setup.curSlot)); });
+    if (setup) S.slots.forEach((sl, i) => { if (i >= S.nations.length) sl.forEach(id => slotOf.set(id, true)); });
     const biomeCol = p => hexRgb((D.biomes[p.biome] || D.biomes.plains).c);
     const cols = S.P.map(p => {
       const shade = ((p.id * 37) % 7 - 3) * .025;
@@ -182,14 +182,7 @@ export class MapView {
       const cp = S.P[n.cap]; this.star(g, cp.cx * BS, (cp.cy - 5) * BS, 4.2 * BS, n.you ? '#ffd27a' : '#f4f6f1');
     }
     this.labels.sort((a, b) => b.cells - a.cells);
-    if (setup) {
-      g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
-      S.slots.forEach((sl, i) => {
-        if (i < S.nations.length) return; const p = S.P[sl[0]], t = i === 0 ? 'YOU' : String(i + 1), fs = Math.max(14, 16 * BS);
-        g.font = `700 ${fs}px "Bahnschrift Condensed", "Bahnschrift", Impact, sans-serif`;
-        g.lineWidth = fs * .2; g.strokeStyle = INK; g.strokeText(t, p.cx * BS, (p.cy - 4) * BS); g.fillStyle = i === setup.curSlot ? '#ffd27a' : '#f4f6f1'; g.fillText(t, p.cx * BS, (p.cy - 4) * BS);
-      });
-    }
+    if (setup) for (const sl of S.slots) { const p = S.P[sl[0]]; this.star(g, p.cx * BS, (p.cy - 5) * BS, 4.2 * BS, '#ffd27a'); }   // possible starting tiles
     this.ver = S.mapVersion; this.lastBase = performance.now();
   }
   star(g, x, y, r, col) {
@@ -275,7 +268,7 @@ export class MapView {
     if (this.zoom >= 1.6) {
       g.font = '600 12px "Segoe UI", system-ui, sans-serif';
       for (const p of S.P) {
-        if (!vis(p)) continue; let [x, y] = this.toScreen(p.cx, p.cy + 20); y += 9;
+        if (!vis(p) || !p.named) continue; let [x, y] = this.toScreen(p.cx, p.cy + 20); y += 9;
         g.lineWidth = 3; g.strokeStyle = 'rgba(11,22,32,.8)'; g.strokeText(p.name, x, y); g.fillStyle = 'rgba(244,246,241,.9)'; g.fillText(p.name, x, y);
       }
     }

@@ -87,11 +87,14 @@ export function weeklyProduction(n, ps = S.P.filter(p => p.owner === n.id && p.c
       for (const g in B.out) { const a = eff * B.out[g] * sat * mult(n, p, k); st[g] += a; prod[g] += a; p.out[k] = (p.out[k] || 0) + a; } }
     (n.procSat || (n.procSat = {}))[k] = sat;
   }
-  // 5. people eat bread, shared evenly across controlled provinces
+  // 5. people eat bread and burn firewood, shared evenly across controlled provinces
   let people = 0; for (const p of ps) people += p.pop * 1e6;
   const need = people * E().breadPerPerson; dem.bread += need;
   const eat = Math.min(st.bread, need); st.bread -= eat; use.bread += eat;
   n.fed = need > 0 ? eat / need : 1;
+  const fuel = people * (E().woodPerPerson || 0); dem.wood += fuel;
+  const burn = Math.min(st.wood, fuel); st.wood -= burn; use.wood += burn;
+  n.warm = fuel > 0 ? burn / fuel : 1;
   for (const g in SPOIL) st[g] *= 1 - SPOIL[g];
   for (const g of GOODS()) if (st[g] < 1e-6) st[g] = 0;
   n.flow = { prod, use, dem };
@@ -128,43 +131,21 @@ export function weeklyConstruction(n, ps = S.P) {
   }
 }
 
-// ---------- native industry ----------
-// Free land is already farmed by the people living there: about 40% of their bread, no tools.
-export function nativeEconomy(p) {
-  const people = p.pop * 1e6 * .4;
-  if (yieldOf(p, 'farm') > 0) {
-    p.b.farm = Math.ceil(people / (D.buildings.farm.methods[0].out.wheat * yieldOf(p, 'farm')));
-    p.b.bakery = Math.ceil(people / D.buildings.bakery.out.bread);
-    p.b.forestry = Math.ceil(p.b.bakery * D.buildings.bakery.in.wood / (D.buildings.forestry.out.wood * yieldOf(p, 'forestry')));
-  } else p.b.quarry = 1;
-}
-
 // ---------- starting economy ----------
-// Enough industry to feed most of the population and keep tools and weapons coming.
+// A farming tribe: enough fields, ovens, timber and stone to feed and warm everyone, with a little to spare.
 export function startingEconomy(n, provIds) {
-  const ps = provIds.map(i => S.P[i]), cap = ps[0], people = ps.reduce((s, p) => s + p.pop * 1e6, 0);
-  const bread = people * E().breadPerPerson * .85;
-  for (const p of ps) for (const k of ECON()) p.b[k] = 0;   // replace the native farms with a planned start
-  const place = (k, lv, pickP) => { if (lv <= 0) return; const p = pickP(); if (p) p.b[k] += lv; };
-  const best = k => () => ps.filter(p => canPlace(p, k).ok).sort((a, b) => yieldOf(b, k) * b.pop - yieldOf(a, k) * a.pop)[0];
-  const farmable = ps.filter(p => yieldOf(p, 'farm') > 0), fw = farmable.reduce((s, p) => s + p.pop * yieldOf(p, 'farm'), 0);
-  // farms spread over farmland by population
-  for (const p of farmable) p.b.farm += Math.ceil(bread * (p.pop * yieldOf(p, 'farm') / fw) / (D.buildings.farm.methods[0].out.wheat * yieldOf(p, 'farm')));
-  const bak = Math.ceil(bread / D.buildings.bakery.out.bread);
-  place('bakery', bak, () => cap);
-  const tools = ps.reduce((s, p) => s + p.b.farm * D.buildings.farm.tools, 0) + 2 * D.buildings.forestry.tools + D.buildings.quarry.tools;
-  const ts = Math.max(1, Math.ceil(tools * 1.2 / D.buildings.toolsmith.out.tools));
-  place('toolsmith', ts, () => cap);
-  const wood = bak * D.buildings.bakery.in.wood + ts * D.buildings.toolsmith.in.wood + 40000;
-  const fp = best('forestry')();
-  if (fp) fp.b.forestry += Math.max(1, Math.ceil(wood / (D.buildings.forestry.out.wood * yieldOf(fp, 'forestry'))));
-  const smiths = Math.max(1, Math.round(forceLimit(n) / 150000));
-  place('swordsmith', smiths, () => cap); place('spearsmith', smiths, () => cap);
-  const stone = ts * D.buildings.toolsmith.in.stone + smiths * (D.buildings.swordsmith.in.stone + D.buildings.spearsmith.in.stone) + 40000;
-  const qp = best('quarry')(); if (qp) qp.b.quarry += Math.max(1, Math.ceil(stone / (D.buildings.quarry.out.stone * yieldOf(qp, 'quarry'))));
+  const ps = provIds.map(i => S.P[i]), cap = ps[0], people = ps.reduce((s, p) => s + p.pop * 1e6, 0), B = D.buildings;
+  for (const p of ps) for (const k of ECON()) p.b[k] = 0;
+  const best = k => ps.filter(p => canPlace(p, k).ok).sort((a, b) => yieldOf(b, k) - yieldOf(a, k))[0] || cap;
+  const fp = best('farm'), bp = best('forestry'), qp = best('quarry');
+  const bread = people * E().breadPerPerson * 1.05;
+  fp.b.farm = Math.max(1, Math.ceil(bread / (B.farm.methods[0].out.wheat * Math.max(.1, yieldOf(fp, 'farm')))));
+  cap.b.bakery = Math.max(1, Math.ceil(bread / B.bakery.out.bread));
+  cap.b.toolsmith = 1; cap.b.swordsmith = 1; cap.b.spearsmith = 1; qp.b.quarry = 1;
+  const wood = cap.b.bakery * B.bakery.in.wood + people * E().woodPerPerson + B.toolsmith.in.wood + B.swordsmith.in.wood + B.spearsmith.in.wood;
+  bp.b.forestry = Math.max(1, Math.ceil(wood * 1.15 / (B.forestry.out.wood * Math.max(.1, yieldOf(bp, 'forestry')))));
   n.stock = emptyStock();
-  const st = n.stock;
-  st.bread = people * 3; st.wheat = bak * D.buildings.bakery.in.wheat; st.wood = 250000; st.stone = 250000; st.tools = tools * 6;
+  Object.assign(n.stock, { bread: people * 3, wheat: B.bakery.in.wheat, wood: 60, stone: 60, tools: 10 });
 }
 
 // ---------- AI economy ----------
@@ -182,19 +163,19 @@ export function aiPlanEconomy(n) {
   const wheatNeed = Math.max(breadCap, breadNeed) * B.bakery.in.wheat / B.bakery.out.bread, wheatCap = levelsOf(n, 'farm') * wheat * avgY('farm') * .9;
   if (wheatCap < wheatNeed && st.wheat < f.dem.wheat * 8) need.push(['farm', Math.ceil((wheatNeed - wheatCap) / (wheat * avgY('farm') * .9))]);
   // tools for every raw industry
-  const toolCap = levelsOf(n, 'toolsmith') * B.toolsmith.out.tools, toolNeed = f.dem.tools * 1.15 + 2000;
+  const toolCap = levelsOf(n, 'toolsmith') * B.toolsmith.out.tools, toolNeed = f.dem.tools * 1.15 + .5;
   if (toolCap < toolNeed && fed('toolsmith')) need.push(['toolsmith', Math.ceil((toolNeed - toolCap) / B.toolsmith.out.tools)]);
   // weapons: keep a reserve that grows in wartime
-  const war = warsOf(n.id).length > 0, target = fl * (war ? .3 : .15), cap = 1 + Math.floor(fl / 40000);
+  const war = warsOf(n.id).length > 0, target = fl * (war ? .3 : .15), cap = 1 + Math.floor(fl / 150);
   for (const k of ['swordsmith', 'spearsmith']) {
     const g = k === 'swordsmith' ? 'swords' : 'spears', have = levelsOf(n, k);
     if (st[g] < target && have < cap && fed(k)) need.push([k, Math.min(cap - have, Math.ceil((target - st[g]) / (B[k].out[g] * 26)))]);
   }
   // wood and stone for workshops and building, with a buffer
-  const wood = f.dem.wood * 1.1 + 60000 - levelsOf(n, 'forestry') * B.forestry.out.wood * avgY('forestry') * .9;
-  if ((wood > 0 || st.wood < 150000) && st.wood < f.dem.wood * 26 + 300000) need.push(['forestry', Math.max(1, Math.ceil(wood / (B.forestry.out.wood * avgY('forestry') * .9)))]);
-  const stone = f.dem.stone * 1.1 + 40000 - levelsOf(n, 'quarry') * B.quarry.out.stone * avgY('quarry') * .9;
-  if ((stone > 0 || st.stone < 150000) && st.stone < f.dem.stone * 26 + 300000) need.push(['quarry', Math.max(1, Math.ceil(stone / (B.quarry.out.stone * avgY('quarry') * .9)))]);
+  const wood = f.dem.wood * 1.1 + 5 - levelsOf(n, 'forestry') * B.forestry.out.wood * avgY('forestry') * .9;
+  if ((wood > 0 || st.wood < 30 + f.dem.wood * 2) && st.wood < f.dem.wood * 26 + 150) need.push(['forestry', Math.max(1, Math.ceil(wood / (B.forestry.out.wood * avgY('forestry') * .9)))]);
+  const stone = f.dem.stone * 1.1 + 3 - levelsOf(n, 'quarry') * B.quarry.out.stone * avgY('quarry') * .9;
+  if ((stone > 0 || st.stone < 30 + f.dem.stone * 2) && st.stone < f.dem.stone * 26 + 150) need.push(['quarry', Math.max(1, Math.ceil(stone / (B.quarry.out.stone * avgY('quarry') * .9)))]);
   let orders = 0; const maxOrders = 3 + Math.floor(ps.length / 2);
   for (let [k, want] of need) {
     const Bk = B[k];
@@ -208,6 +189,6 @@ export function aiPlanEconomy(n) {
     }
   }
   // now and then: a fort on the capital, or a harbour if the nation has no port
-  if (!orders && st.stone > 400000 && R() < .03) { const p = S.P[n.cap]; if (p.ctrl === n.id && !p.build) orderBuild(n, p, 'fort', 1); }
-  if (!orders && st.wood > 400000 && R() < .03 && !ps.some(p => p.res === 'port' || p.b.harbour)) { const p = ps.find(q => q.coastal && !q.build); if (p) orderBuild(n, p, 'harbour', 1); }
+  if (!orders && st.stone > 200 && R() < .03) { const p = S.P[n.cap]; if (p.ctrl === n.id && !p.build) orderBuild(n, p, 'fort', 1); }
+  if (!orders && st.wood > 200 && R() < .03 && !ps.some(p => p.res === 'port' || p.b.harbour)) { const p = ps.find(q => q.coastal && !q.build); if (p) orderBuild(n, p, 'harbour', 1); }
 }

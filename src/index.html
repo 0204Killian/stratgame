@@ -17,9 +17,10 @@
       <button data-sp="1" title="Speed 1">1</button><button data-sp="2" title="Speed 2">2</button><button data-sp="3" title="Speed 3">3</button><button data-sp="4" title="Speed 4">4</button><button data-sp="5" title="Speed 5">5</button>
     </div>
     <div class="tbstats" id="tbStats">
+      <div class="stat" data-tab="econ"><span class="eyebrow">People</span><b id="tPop">—</b></div>
       <div class="stat" data-tab="econ"><span class="eyebrow">Treasury</span><b id="tTreasury">—</b></div>
       <div class="stat" data-tab="econ"><span class="eyebrow">Monthly</span><b id="tIncome">—</b></div>
-      <div class="stat" data-tab="econ"><span class="eyebrow">Army / limit</span><b id="tArmy">—</b></div>
+      <div class="stat" data-tab="econ"><span class="eyebrow">Army</span><b id="tArmy">—</b></div>
       <div class="stat" data-tab="econ"><span class="eyebrow">Manpower</span><b id="tManpower">—</b></div>
       <div class="stat" data-tab="econ"><span class="eyebrow">Food</span><b id="tFood">—</b></div>
       <div class="stat" data-tab="tech"><span class="eyebrow">Research</span><b id="tResearch">—</b></div>
@@ -44,33 +45,29 @@
       <div id="setup">
         <div class="setupcard">
           <div class="eyebrow">New game</div>
-          <h1>Spin your nation</h1>
+          <h1>Found your tribe</h1>
+          <p class="hint">A few hundred farmers on one patch of land. Feed them bread, keep them warm with firewood, and grow from there.</p>
+          <div class="setupopts tribeopts">
+            <label class="opt wide"><span class="eyebrow">Tribe name</span><input type="text" id="tribeName" maxlength="28" autocomplete="off"></label>
+            <label class="opt wide"><span class="eyebrow">Culture</span><select id="culture"></select></label>
+            <p class="hint" id="cultureDesc"></p>
+          </div>
           <div class="setupopts">
             <label class="opt"><span class="eyebrow">Goal</span>
               <select id="goal"><option value="hegemon" selected>Superpower</option><option value="conquest">World conqueror</option><option value="economy">Tycoon</option><option value="survive">Survivor</option></select></label>
             <label class="opt"><span class="eyebrow">Difficulty</span>
               <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
             <label class="opt"><span class="eyebrow">Map size</span>
-              <select id="mapSize"><option value="small">Small</option><option value="medium">Medium</option><option value="large" selected>Large</option><option value="huge">Huge</option></select></label>
-            <label class="opt"><span class="eyebrow">Nations</span>
+              <select id="mapSize"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option><option value="huge">Huge</option></select></label>
+            <label class="opt"><span class="eyebrow">Tribes</span>
               <select id="size"></select></label>
             <button id="newMap" class="opt-btn">New map</button>
             <p class="hint" id="goalDesc"></p>
           </div>
-          <div class="eyebrow" id="setupLabel">Your nation</div>
-          <div class="wheelrow">
-            <div class="wheelbox"><canvas id="wheel" aria-label="Spinning wheel. Click to spin."></canvas><div class="stamp" id="stamp"></div></div>
-            <div class="draft">
-              <div class="cur" id="draftName">Your nation</div>
-              <div class="flavor" id="flavor"></div>
-              <dl id="draftStats"></dl>
-            </div>
-          </div>
+          <p class="hint">Your tribe starts on a random tile where farming, forestry and stone are all possible. Highlighted tiles are the starting spots.</p>
           <div class="btns">
-            <button class="primary" id="spin">Spin</button>
-            <button id="respin">Respin</button>
-            <button id="spinRest">Auto-spin mine</button>
-            <button id="skip">Skip to the game</button>
+            <button class="primary" id="startGame">Found the tribe</button>
+            <button id="nameIdea">Suggest a name</button>
           </div>
         </div>
       </div>

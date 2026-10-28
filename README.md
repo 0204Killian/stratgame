@@ -1,12 +1,15 @@
 # Wheel of Nations
 
-A real-time grand strategy game. You spin your nation on a wheel, then expand, trade, research and fight on a procedurally generated map: Small (48 provinces) to Huge (about 1,000 provinces and up to 32 nations).
+A real-time grand strategy game from the stone age up. You found a small farming tribe on one tile, then grow, settle, build and fight on a procedurally generated map: Small (48 tiles) to Huge (about 1,000 tiles and up to 32 tribes).
 
 ## Play
 - **Windows:** unzip `WheelOfNations-<version>-win-x64.zip` and run `Wheel of Nations.exe`. Saves and settings are kept in `%APPDATA%\Wheel of Nations\`.
 - **Develop:** install Node.js 20+, then `npm install` and `npm start`.
 
 ## Economy and armies
+- Every tribe starts with a few hundred people on a tile where farming, forestry and stone are all possible. Free tiles hold 0 to 300 people.
+- Tiles have no name until settled; then they take a place name from the settling tribe's culture (60 cultures in `src/data/cultures.json`).
+- People eat bread and burn firewood. Wheat only feeds bakeries.
 - Every province has a biome (plains, forest, hills, mountains, desert). Stone can be quarried anywhere; farms and forestry are not possible in deserts or mountains.
 - Goods sit in one national stockpile. Farms grow wheat or fiber, forestry cuts wood, quarries cut stone. All three need stone tools from toolsmiths, or they work at half speed.
 - Bakeries turn wheat into bread, burning wood. People eat one bread a week; hungry provinces shrink, and subsistence farming covers only part of the gap.

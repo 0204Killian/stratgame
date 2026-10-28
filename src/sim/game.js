@@ -1,12 +1,12 @@
 // Public API of the simulation. The UI reads state through these exports and changes it only through commands.
-import { S, D, setState, setData, R, pick, rnd, newNationName, clamp, MONTH, YEAR, UPKEEP, N, PN, log, emit, yearOf, unlockMedal,
+import { S, D, setState, setData, R, pick, rnd, newTribeName, MIN_ARMY, shuffle, clamp, MONTH, YEAR, UPKEEP, N, PN, log, emit, yearOf, unlockMedal,
   player, provsOf, popOf, gdpOf, armiesOf, troopsOf, forceLimit, techCost, techExtra, techAvail, warBetween, atWar, warsOf, allied, truceWith, hasNuke, monthlyIncome } from './core.js';
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
 import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor, mixOf, MORALE } from './military.js';
-import { orderBuild, ECON, provincesByOwner } from './industry.js';
+import { orderBuild, ECON, provincesByOwner, weeklyProduction } from './industry.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
-import { monthlyNation, weeklyNation, dailyNation } from './economy.js';
+import { monthlyNation, weeklyNation, dailyNation, ERA_TRAITS } from './economy.js';
 import { aiArmies } from './ai.js';
 import { triggerEvent, resolveDecision } from './events.js';
 
@@ -15,7 +15,7 @@ export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, m
 export { GOODS, ECON, workforce, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers } from './industry.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export function init(data) { setData(data); }
 
 export function newGame({ seed = (Math.random() * 2 ** 31) | 0, mapSize = 'small', nations, goal = 'hegemon', diff = 'normal' }) {
@@ -28,14 +28,24 @@ export function newGame({ seed = (Math.random() * 2 ** 31) | 0, mapSize = 'small
   genWorld(mapSize, nations || D.balance.mapSizes[mapSize].defNations);
   return s;
 }
-export function randomDraft() {
-  const name = newNationName();
-  return { name, gov: pick(D.governments).k, popM: pick(D.setup.pops).v * rnd(.85, 1.15), milPct: pick(D.setup.mils).v, gdp: pick(D.setup.ecos).v * rnd(.85, 1.15), trait: pick(D.traits).k, leader: pick(D.leaders).k };
+// A starting tribe: a few hundred farmers on one tile.
+export function tribeDraft(culture, name) {
+  if (!culture || !D.cultures[culture]) { const used = new Set(S.nations.map(n => n.culture)), free = Object.keys(D.cultures).filter(k => !used.has(k)); culture = pick(free.length ? free : Object.keys(D.cultures)); }
+  const [lo, hi] = D.balance.startPop, popM = Math.round(rnd(lo, hi)) / 1e6;
+  return { name: (name && name.trim()) || newTribeName(culture), culture, gov: 'tribal', popM, milPct: D.balance.startMil, gdp: popM * rnd(3, 5), trait: pick(ERA_TRAITS()).k, leader: pick(D.leaders).k };
+}
+export const randomDraft = () => tribeDraft();
+// Place every tribe: the player on a random starting tile, the rest of the cultures chosen at random.
+export function setupTribes({ name, culture } = {}) {
+  const order = shuffle(S.slots.map((_, i) => i)), you = order[0];
+  createNation(tribeDraft(culture, name), S.slots[you], true);
+  for (const i of order.slice(1)) createNation(tribeDraft(), S.slots[i], false);
 }
 export function foundNation(draft, slotIdx, you) { return createNation(draft, S.slots[slotIdx], you); }
 export function startGame() {
   S.phase = 'game'; S.day = 0;
-  log(`The wheel has spoken. ${S.nations.length} nations and ${S.P.filter(q => q.owner == null).length} free provinces.`, 'big', 0);
+  const byOwner = provincesByOwner(); for (const n of S.nations) weeklyProduction(n, byOwner.get(n.id) || []);   // first week's figures are ready at once
+  log(`${S.nations.length} tribes settle the land. ${S.P.filter(q => q.owner == null).length} tiles lie unclaimed.`, 'big', 0);
 }
 
 // ---------- time ----------
@@ -120,7 +130,7 @@ export function cmdMove(armyIds, provId) {
 }
 export function cmdStop(id) { const a = army(id); if (!mine(a) || a.retreat) return fail('Cannot stop this army.'); a.path = []; a.prog = 0; return { ok: true }; }
 export function cmdSplit(id) {
-  const a = army(id); if (!mine(a) || a.path.length || a.troops < 2000) return fail('Only an idle army of 2,000+ can split.');
+  const a = army(id); if (!mine(a) || a.path.length || a.troops < MIN_ARMY() * 2) return fail(`Only an idle army of ${MIN_ARMY() * 2}+ can split.`);
   const b = makeArmy(S.nations[a.nat], a.prov, a.troops / 2, mixOf(a)); a.troops /= 2; b.mor = mor(a); return { ok: true, army: b.id };
 }
 export function cmdMerge(ids) {
@@ -134,7 +144,7 @@ export function cmdDischarge(id, frac) {
   const n = S.nations[a.nat], l = a.troops * clamp(frac, 0, 1);
   n.manpower = Math.min(forceLimit(n) * .5, n.manpower + l * .5);
   n.stock.swords += l * mixOf(a); n.stock.spears += l * (1 - mixOf(a));   // weapons go back into store
-  a.troops -= l; if (a.troops < 300) S.armies = S.armies.filter(x => x !== a);
+  a.troops -= l; if (a.troops < MIN_ARMY()) S.armies = S.armies.filter(x => x !== a);
   return { ok: true };
 }
 export function recruitLimits() {
@@ -150,7 +160,7 @@ export function cmdRecruit(provId, sw, sp) {
   const room = Math.floor(Math.min(p.manpower, lim.room));
   if (sw + sp > room) { const k = room / (sw + sp); sw = Math.floor(sw * k); sp = Math.floor(sp * k); }
   const troops = sw + sp;
-  if (troops < 1000) return fail('Not enough manpower, weapons or room under your force limit.');
+  if (troops < MIN_ARMY()) return fail('Not enough manpower, weapons or room under your force limit.');
   const cost = troops * lim.costPer; if (p.treasury < cost) return fail('Not enough money.');
   p.manpower -= troops; p.treasury -= cost; p.stock.swords -= sw; p.stock.spears -= sp;
   const a = makeArmy(p, provId, troops, sw / troops);
