@@ -1,32 +1,19 @@
 {
  "farm": {
-  "n": "Farm",
+  "n": "Wheat farm",
   "kind": "raw",
   "c": "#9ccc54",
   "jobs": 20,
   "tools": 0.8,
-  "methods": [
-   {
-    "k": "wheat",
-    "n": "Wheat",
-    "out": {
-     "wheat": 160
-    }
-   },
-   {
-    "k": "fiber",
-    "n": "Fiber",
-    "out": {
-     "fiber": 100
-    }
-   }
-  ],
+  "out": {
+   "wheat": 160
+  },
   "cost": {
    "wood": 2
   },
   "builders": 8,
   "weeks": 8,
-  "d": "Grows wheat or fiber"
+  "d": "Grows wheat"
  },
  "forestry": {
   "n": "Forestry",
@@ -56,85 +43,455 @@
   "weeks": 8,
   "d": "Cuts stone"
  },
- "toolsmith": {
-  "n": "Stone toolsmith",
-  "kind": "proc",
-  "c": "#8fb3c9",
-  "jobs": 4,
-  "in": {
-   "stone": 2.4,
-   "wood": 1.6
-  },
+ "hunter": {
+  "n": "Hunting lodge",
+  "kind": "raw",
+  "c": "#b06a4a",
+  "jobs": 10,
+  "tools": 0.4,
   "out": {
-   "tools": 4
+   "meat": 40,
+   "hides": 5
   },
   "cost": {
-   "wood": 2,
-   "stone": 4
+   "wood": 2
   },
   "builders": 4,
+  "weeks": 4,
+  "d": "Hunts game for meat and hides: wild land feeds people without fields",
+  "perCell": 0.05
+ },
+ "flax": {
+  "n": "Flax field",
+  "kind": "raw",
+  "c": "#b9a9e0",
+  "jobs": 14,
+  "tools": 0.6,
+  "out": {
+   "fiber": 90
+  },
+  "cost": {
+   "wood": 2
+  },
+  "builders": 6,
   "weeks": 6,
-  "d": "Makes the stone tools farms, forestry and quarries work with"
+  "d": "Grows flax for linen",
+  "tech": "weaving",
+  "y": "farm"
+ },
+ "pasture": {
+  "n": "Pasture",
+  "kind": "raw",
+  "c": "#d39a6a",
+  "jobs": 12,
+  "tools": 0.4,
+  "out": {
+   "meat": 70,
+   "hides": 10
+  },
+  "cost": {
+   "wood": 4
+  },
+  "builders": 6,
+  "weeks": 8,
+  "d": "Herds animals for meat and hides",
+  "tech": "husbandry"
+ },
+ "fishery": {
+  "n": "Fishery",
+  "kind": "raw",
+  "c": "#6fb5cf",
+  "jobs": 10,
+  "tools": 0.4,
+  "out": {
+   "fish": 70
+  },
+  "cost": {
+   "wood": 6
+  },
+  "builders": 6,
+  "weeks": 6,
+  "d": "Fishes the coast",
+  "tech": "fishing",
+  "coast": true,
+  "perCell": 0.06
+ },
+ "claypit": {
+  "n": "Clay pit",
+  "kind": "raw",
+  "c": "#c27a55",
+  "jobs": 10,
+  "tools": 0.6,
+  "out": {
+   "clay": 60
+  },
+  "cost": {},
+  "builders": 4,
+  "weeks": 4,
+  "d": "Digs clay for pots and bricks",
+  "tech": "pottery"
+ },
+ "coppermine": {
+  "n": "Copper mine",
+  "kind": "raw",
+  "c": "#c98b4e",
+  "jobs": 16,
+  "tools": 1.2,
+  "out": {
+   "copperore": 30
+  },
+  "cost": {
+   "wood": 8,
+   "stone": 8
+  },
+  "builders": 8,
+  "weeks": 10,
+  "d": "Mines copper ore; needs a copper deposit",
+  "tech": "copper",
+  "dep": "copper",
+  "y": "quarry"
+ },
+ "tinmine": {
+  "n": "Tin mine",
+  "kind": "raw",
+  "c": "#9aa7b3",
+  "jobs": 16,
+  "tools": 1.2,
+  "out": {
+   "tinore": 14
+  },
+  "cost": {
+   "wood": 8,
+   "stone": 8
+  },
+  "builders": 8,
+  "weeks": 10,
+  "d": "Mines tin ore; needs a tin deposit",
+  "tech": "bronze",
+  "dep": "tin",
+  "y": "quarry"
+ },
+ "mill": {
+  "n": "Mill",
+  "kind": "proc",
+  "c": "#efe2bf",
+  "jobs": 6,
+  "cost": {
+   "wood": 6,
+   "stone": 8
+  },
+  "builders": 6,
+  "weeks": 8,
+  "d": "Grinds wheat into flour",
+  "tech": "milling",
+  "in": {
+   "wheat": 320
+  },
+  "out": {
+   "flour": 320
+  }
  },
  "bakery": {
-  "n": "Bread bakery",
+  "n": "Bakery",
   "kind": "proc",
   "c": "#f0a35a",
   "jobs": 12,
-  "in": {
-   "wheat": 400,
-   "wood": 20
-  },
-  "out": {
-   "bread": 400
-  },
   "cost": {
    "wood": 4,
    "stone": 8
   },
   "builders": 8,
   "weeks": 8,
-  "d": "Bakes wheat into bread, burning wood"
+  "d": "Bakes bread, burning wood",
+  "methods": [
+   {
+    "k": "hearth",
+    "n": "Hearth bread",
+    "in": {
+     "wheat": 400,
+     "wood": 20
+    },
+    "out": {
+     "bread": 400
+    }
+   },
+   {
+    "k": "oven",
+    "n": "Flour in an oven",
+    "in": {
+     "flour": 320,
+     "wood": 16
+    },
+    "out": {
+     "bread": 500
+    },
+    "tech": "milling"
+   }
+  ]
  },
- "swordsmith": {
-  "n": "Swordsmith",
+ "toolsmith": {
+  "n": "Stone toolsmith",
   "kind": "proc",
-  "c": "#e07a6a",
+  "c": "#8fb3c9",
   "jobs": 4,
-  "in": {
-   "stone": 1.6,
-   "wood": 0.8
-  },
-  "out": {
-   "swords": 0.8
-  },
-  "cost": {
-   "wood": 2,
-   "stone": 4
-  },
-  "builders": 4,
-  "weeks": 8,
-  "d": "Arms swordsmen, the front row"
- },
- "spearsmith": {
-  "n": "Spearsmith",
-  "kind": "proc",
-  "c": "#d6cf6a",
-  "jobs": 4,
-  "in": {
-   "wood": 1.2,
-   "stone": 0.4
-  },
-  "out": {
-   "spears": 1.2
-  },
   "cost": {
    "wood": 2,
    "stone": 4
   },
   "builders": 4,
   "weeks": 6,
-  "d": "Arms spearmen, the back row"
+  "d": "Knaps the stone tools farms, forestry, quarries and mines work with",
+  "in": {
+   "stone": 2.4,
+   "wood": 1.6
+  },
+  "out": {
+   "tools": 4
+  }
+ },
+ "weaver": {
+  "n": "Weaver",
+  "kind": "proc",
+  "c": "#d8d0ef",
+  "jobs": 8,
+  "cost": {
+   "wood": 6,
+   "stone": 4
+  },
+  "builders": 6,
+  "weeks": 6,
+  "d": "Weaves flax into linen",
+  "tech": "weaving",
+  "in": {
+   "fiber": 40
+  },
+  "out": {
+   "cloth": 20
+  }
+ },
+ "tanner": {
+  "n": "Tannery",
+  "kind": "proc",
+  "c": "#8d5a36",
+  "jobs": 6,
+  "cost": {
+   "wood": 6,
+   "stone": 4
+  },
+  "builders": 6,
+  "weeks": 6,
+  "d": "Tans hides into leather, with bark",
+  "tech": "tanning",
+  "in": {
+   "hides": 12,
+   "wood": 2
+  },
+  "out": {
+   "leather": 8
+  }
+ },
+ "tailor": {
+  "n": "Tailor",
+  "kind": "proc",
+  "c": "#b48ad9",
+  "jobs": 6,
+  "cost": {
+   "wood": 6,
+   "stone": 4
+  },
+  "builders": 6,
+  "weeks": 6,
+  "d": "Sews linen and leather into clothes",
+  "tech": "tanning",
+  "in": {
+   "cloth": 8,
+   "leather": 3
+  },
+  "out": {
+   "clothes": 8
+  }
+ },
+ "potter": {
+  "n": "Potter",
+  "kind": "proc",
+  "c": "#d0865e",
+  "jobs": 6,
+  "cost": {
+   "wood": 4,
+   "stone": 6
+  },
+  "builders": 6,
+  "weeks": 6,
+  "d": "Fires clay into pots and jars",
+  "tech": "pottery",
+  "in": {
+   "clay": 30,
+   "wood": 8
+  },
+  "out": {
+   "pottery": 18
+  }
+ },
+ "brickworks": {
+  "n": "Brickworks",
+  "kind": "proc",
+  "c": "#b5523b",
+  "jobs": 8,
+  "cost": {
+   "wood": 8,
+   "stone": 10
+  },
+  "builders": 8,
+  "weeks": 8,
+  "d": "Fires clay into bricks for bigger buildings",
+  "tech": "masonry",
+  "in": {
+   "clay": 40,
+   "wood": 12
+  },
+  "out": {
+   "bricks": 40
+  }
+ },
+ "kiln": {
+  "n": "Charcoal kiln",
+  "kind": "proc",
+  "c": "#5a5550",
+  "jobs": 6,
+  "cost": {
+   "stone": 8
+  },
+  "builders": 6,
+  "weeks": 6,
+  "d": "Burns wood slowly into charcoal, a hot fuel for smelting and homes",
+  "tech": "copper",
+  "in": {
+   "wood": 40
+  },
+  "out": {
+   "charcoal": 16
+  }
+ },
+ "smelter": {
+  "n": "Bronze smelter",
+  "kind": "proc",
+  "c": "#cd8f3a",
+  "jobs": 10,
+  "cost": {
+   "stone": 10,
+   "bricks": 30
+  },
+  "builders": 10,
+  "weeks": 12,
+  "d": "Smelts copper and tin with charcoal into bronze",
+  "tech": "bronze",
+  "in": {
+   "copperore": 12,
+   "tinore": 3,
+   "charcoal": 12
+  },
+  "out": {
+   "bronze": 6
+  }
+ },
+ "bronzesmith": {
+  "n": "Bronze toolsmith",
+  "kind": "proc",
+  "c": "#e0a85a",
+  "jobs": 4,
+  "cost": {
+   "stone": 6,
+   "bricks": 10
+  },
+  "builders": 6,
+  "weeks": 8,
+  "d": "Casts bronze tools: they last longer and raise output in farms, forestry, quarries and mines",
+  "tech": "bronze",
+  "in": {
+   "bronze": 1.2,
+   "wood": 0.8
+  },
+  "out": {
+   "btools": 3
+  }
+ },
+ "swordsmith": {
+  "n": "Swordsmith",
+  "kind": "proc",
+  "c": "#e07a6a",
+  "jobs": 4,
+  "cost": {
+   "wood": 2,
+   "stone": 4
+  },
+  "builders": 4,
+  "weeks": 8,
+  "d": "Arms swordsmen, the front row",
+  "methods": [
+   {
+    "k": "stone",
+    "n": "Stone blades",
+    "in": {
+     "stone": 1.6,
+     "wood": 0.8
+    },
+    "out": {
+     "swords": 0.8
+    }
+   },
+   {
+    "k": "bronze",
+    "n": "Bronze swords",
+    "in": {
+     "bronze": 0.5,
+     "wood": 0.4
+    },
+    "out": {
+     "swords": 1
+    },
+    "tech": "bronzeweapons",
+    "arms": "bronze"
+   }
+  ]
+ },
+ "spearsmith": {
+  "n": "Spearsmith",
+  "kind": "proc",
+  "c": "#d6cf6a",
+  "jobs": 4,
+  "cost": {
+   "wood": 2,
+   "stone": 4
+  },
+  "builders": 4,
+  "weeks": 6,
+  "d": "Arms spearmen, the back row",
+  "methods": [
+   {
+    "k": "stone",
+    "n": "Stone points",
+    "in": {
+     "wood": 1.2,
+     "stone": 0.4
+    },
+    "out": {
+     "spears": 1.2
+    }
+   },
+   {
+    "k": "bronze",
+    "n": "Bronze points",
+    "in": {
+     "wood": 1,
+     "bronze": 0.25
+    },
+    "out": {
+     "spears": 1.4
+    },
+    "tech": "bronzeweapons",
+    "arms": "bronze"
+   }
+  ]
  },
  "construction": {
   "n": "Construction centre",

@@ -6,7 +6,7 @@
   "tier": 1
  },
  "fiber": {
-  "n": "Fiber",
+  "n": "Flax fiber",
   "c": "#c9b8e8",
   "price": 45,
   "tier": 1
@@ -23,10 +23,46 @@
   "price": 35,
   "tier": 1
  },
- "tools": {
-  "n": "Stone tools",
-  "c": "#8fb3c9",
-  "price": 600,
+ "clay": {
+  "n": "Clay",
+  "c": "#c27a55",
+  "price": 30,
+  "tier": 1
+ },
+ "meat": {
+  "n": "Meat",
+  "c": "#c9584b",
+  "price": 60,
+  "tier": 1
+ },
+ "hides": {
+  "n": "Hides",
+  "c": "#a8794e",
+  "price": 80,
+  "tier": 1
+ },
+ "fish": {
+  "n": "Fish",
+  "c": "#6fb5cf",
+  "price": 50,
+  "tier": 1
+ },
+ "copperore": {
+  "n": "Copper ore",
+  "c": "#c98b4e",
+  "price": 120,
+  "tier": 1
+ },
+ "tinore": {
+  "n": "Tin ore",
+  "c": "#9aa7b3",
+  "price": 200,
+  "tier": 1
+ },
+ "flour": {
+  "n": "Flour",
+  "c": "#efe2bf",
+  "price": 45,
   "tier": 2
  },
  "bread": {
@@ -35,10 +71,46 @@
   "price": 55,
   "tier": 2
  },
- "swords": {
-  "n": "Swords",
-  "c": "#e07a6a",
-  "price": 2500,
+ "tools": {
+  "n": "Stone tools",
+  "c": "#8fb3c9",
+  "price": 600,
+  "tier": 2
+ },
+ "cloth": {
+  "n": "Linen",
+  "c": "#d8d0ef",
+  "price": 160,
+  "tier": 2
+ },
+ "leather": {
+  "n": "Leather",
+  "c": "#8d5a36",
+  "price": 220,
+  "tier": 2
+ },
+ "clothes": {
+  "n": "Clothes",
+  "c": "#b48ad9",
+  "price": 450,
+  "tier": 2
+ },
+ "pottery": {
+  "n": "Pottery",
+  "c": "#d0865e",
+  "price": 140,
+  "tier": 2
+ },
+ "bricks": {
+  "n": "Bricks",
+  "c": "#b5523b",
+  "price": 70,
+  "tier": 2
+ },
+ "charcoal": {
+  "n": "Charcoal",
+  "c": "#5a5550",
+  "price": 90,
   "tier": 2
  },
  "spears": {
@@ -46,5 +118,23 @@
   "c": "#d6cf6a",
   "price": 1600,
   "tier": 2
+ },
+ "swords": {
+  "n": "Swords",
+  "c": "#e07a6a",
+  "price": 2500,
+  "tier": 2
+ },
+ "bronze": {
+  "n": "Bronze",
+  "c": "#cd8f3a",
+  "price": 900,
+  "tier": 3
+ },
+ "btools": {
+  "n": "Bronze tools",
+  "c": "#e0a85a",
+  "price": 1800,
+  "tier": 3
  }
 }

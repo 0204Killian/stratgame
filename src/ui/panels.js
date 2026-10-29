@@ -42,7 +42,7 @@ function tabArmies(ui) {
     const a = list[0], others = mine ? S.armies.filter(o => o !== a && o.nat === a.nat && o.prov === a.prov && o.prog === 0 && !o.path.length) : [];
     const lim = mine ? G.recruitLimits() : null;
     return `<div class="eyebrow">${mine ? esc(G.armyName(a)) : esc(G.armyName(a)) + ' of ' + esc(n.name)}</div><h2>${chip(n)}${num(a.troops)} troops</h2>
-      <dl>${row('Status', armyStatus(a))}${row('Troops', `${kfmt(a.troops * G.mixOf(a))} swordsmen · ${kfmt(a.troops * (1 - G.mixOf(a)))} spearmen`)}${row('Formation', `${Math.round(G.mixEff(G.mixOf(a)) * 100)}% of ideal <span class="sub">· 1:1 fills both rows</span>`, G.mixEff(G.mixOf(a)) < .9 ? 'neg' : '')}${row('Morale', `${Math.round(G.mor(a) * 100)}%${G.mor(a) < G.MORALE.broken ? ' · broken, will be destroyed if caught' : G.mor(a) < G.MORALE.siegeMin ? ' · too low to siege' : ''}`, G.mor(a) < G.MORALE.siegeMin ? 'neg' : '')}${row('Fighting strength', `×${G.quality(n).toFixed(2)} per soldier`)}${mine ? row('Upkeep', fmtGdp(a.troops * lim.upkeepPer) + ' a month') : ''}</dl>
+      <dl>${row('Status', armyStatus(a))}${row('Troops', `${kfmt(a.troops * G.mixOf(a))} swordsmen · ${kfmt(a.troops * (1 - G.mixOf(a)))} spearmen`)}${row('Formation', `${Math.round(G.mixEff(G.mixOf(a)) * 100)}% of ideal <span class="sub">· 1:1 fills both rows</span>`, G.mixEff(G.mixOf(a)) < .9 ? 'neg' : '')}${row('Morale', `${Math.round(G.mor(a) * 100)}%${G.mor(a) < G.MORALE.broken ? ' · broken, will be destroyed if caught' : G.mor(a) < G.MORALE.siegeMin ? ' · too low to siege' : ''}`, G.mor(a) < G.MORALE.siegeMin ? 'neg' : '')}${row('Fighting strength', `×${G.quality(n).toFixed(2)} per soldier`)}${mine ? row('Pay', fmtGdp(a.troops * lim.upkeepPer) + ' a month') : ''}${mine && (n.armed ?? 1) < .95 ? row('Weapons', `${Math.round((n.armed ?? 1) * 100)}% in good repair: make more swords and spears`, 'neg') : ''}</dl>
       ${mine ? `<p class="hint">Right-click a province to march there. Discharged soldiers return half to your manpower pool.</p>
       <div class="btns">${btn('stop', a.id, 'Stop', { dis: !a.path.length || a.retreat })}${btn('split', a.id, 'Split in half', { dis: a.troops < G.MIN_ARMY() * 2 || a.path.length > 0 })}
       ${others.length ? btn('merge', [a.id, ...others.map(o => o.id)].join(','), `Merge ${others.length} here`) : ''}
@@ -63,28 +63,32 @@ function industrySummary(pr) {
   const ks = Object.keys(D.buildings).filter(k => pr.b[k]);
   return ks.length ? `<h3>Industry</h3><div class="tags">${ks.map(k => `<span class="tag">${D.buildings[k].n} ${pr.b[k]}</span>`).join('')}</div>` : '';
 }
-// Buildings in one of your provinces: output, how hard each works, the farm crop, and construction.
+// Buildings in one of your provinces: output, wages, how hard each works, the production method, and construction.
+const gl = g => D.goods[g].n.toLowerCase();
+const recipeText = m => `${Object.entries(m.in || {}).map(([g, v]) => `${kfmt(v)} ${gl(g)}`).join(' + ') || 'labour'} → ${Object.entries(m.out).map(([g, v]) => `${kfmt(v)} ${gl(g)}`).join(' + ')}`;
 function industryPanel(pr, p) {
   const fw = G.freeWorkers(pr);
-  let h = `<h3>Industry</h3><div class="inds">`;
+  let h = `<h3>Industry</h3><div class="inds">`; const locked = [];
   for (const k of Object.keys(D.buildings)) {
-    const B = D.buildings[k], lv = pr.b[k], pl = G.canPlace(pr, k);
-    if (!lv && !pl.ok) continue;
+    const B = D.buildings[k], lv = pr.b[k] || 0, pl = G.canPlace(pr, k);
+    if (!lv && !pl.ok) { if (pl.tech && !D.buildings[k].dep && !(B.coast && !pr.coastal)) locked.push(k); continue; }
     const eco = B.kind !== 'mil', set = G.setting(pr, k), out = (pr.out && pr.out[k]) || 0, staffed = lv && eco ? (pr.staff?.[k] || 0) / (lv * Math.max(set, 1e-9)) : 0;
-    const con = G.isCon(k), outG = eco && !con ? Object.keys(B.methods ? G.outputsOf(pr, k) : B.out)[0] : null;
+    const con = G.isCon(k), m = eco && !con ? G.methodOf(pr, k) : null, outG = m ? Object.keys(m.out)[0] : null;
     const wage = pr.wageBy?.[k] ? ` · wage ${fmtPrice(pr.wageBy[k])}/wk${con ? ' from the treasury' : ''}` : '';
     let info = con ? (lv ? `${kfmt((pr.staff?.[k] || 0) * B.jobs)} paid builders for any project in the tribe · ${Math.round(Math.min(1, staffed) * 100)}% staffed${wage}` : `${kfmt(B.jobs)} builders a level, paid from the treasury`)
-      : eco ? (lv ? `${kfmt(out)} ${D.goods[outG].n.toLowerCase()}/wk · ${kfmt(lv * B.jobs * set)} jobs · ${Math.round(Math.min(1, staffed) * 100)}% staffed${wage}` : `${kfmt(B.jobs)} jobs a level`) : B.d;
-    if (eco && B.in && lv) { const sat = p.procSat?.[k], lim = p.procLimit?.[k]; if (sat != null && sat < .99) info += ` · <span class="neg">${Math.round(sat * 100)}%, short of ${lim ? D.goods[lim].n.toLowerCase() : 'inputs'}</span>`; }
+      : eco ? (lv ? `${kfmt(out)} ${gl(outG)}/wk · ${kfmt(lv * B.jobs * set)} jobs · ${Math.round(Math.min(1, staffed) * 100)}% staffed${wage}` : `${kfmt(B.jobs)} jobs a level · ${recipeText(G.methodOf(pr, k))}${B.perCell ? ` · land supports ${G.maxLevels(pr, k)}` : ''}`) : B.d;
+    if (eco && B.kind === 'proc' && lv) { const sat = p.procSat?.[k], lim = p.procLimit?.[k]; if (sat != null && sat < .99) info += ` · <span class="neg">${Math.round(sat * 100)}%, short of ${lim ? gl(lim) : 'inputs'}</span>`; }
     if (eco && B.kind === 'raw' && lv && (p.toolSat ?? 1) < .99) info += ` · <span class="neg">tools ${Math.round(p.toolSat * 100)}%</span>`;
+    const ms = eco && !con ? G.methodsFor(p, k) : [];
+    const meth = ms.length > 1 ? `<select data-act="pmeth" data-arg="${pr.id}:${k}" title="Production method">${ms.map(x => `<option value="${x.k}" ${x.k === m.k ? 'selected' : ''} title="${esc(recipeText(x))}">${esc(x.n)}</option>`).join('')}</select>` : '';
     const c1 = G.buildCost(k, 1), c5 = G.buildCost(k, 5);
-    const canB = pl.ok && !pr.build, ok1 = canB && G.canAfford(p, c1), ok5 = canB && !B.max && G.canAfford(p, c5);
+    const canB = pl.ok && !pr.build, ok1 = canB && G.canAfford(p, c1), ok5 = canB && !B.max && !B.perCell && G.canAfford(p, c5);
     h += `<div class="ind"><div class="indh"><b>${B.n}</b>${lv ? `<span class="lvn">${lv}${B.max ? '/' + B.max : ''}</span>` : ''}</div>
-      <div class="indc">${eco && lv ? `<select data-act="pset" data-arg="${pr.id}:${k}" title="How hard it works">${[1, .75, .5, .25, 0].map(v => `<option value="${v}" ${Math.abs(set - v) < .01 ? 'selected' : ''}>${v ? Math.round(v * 100) + '%' : 'Off'}</option>`).join('')}</select>` : ''}
-      ${btn('build', `${pr.id}:${k}:1`, '+1', { dis: !ok1, title: `${costText(c1)} · ${kfmt(B.builders)} builders · ${B.weeks} weeks` })}${B.max ? '' : btn('build', `${pr.id}:${k}:5`, '+5', { dis: !ok5, title: `${costText(c5)} · ${kfmt(B.builders * 5)} builders · ${B.weeks} weeks` })}</div>
-      <div class="sub indi">${info}${!pl.ok && lv ? ` · ${pl.why}` : ''}</div>
-      ${k === 'farm' && lv ? `<div class="btns crop">${D.buildings.farm.methods.map(m => btn('crop', `${pr.id}:${m.k}`, m.n, { cls: (pr.crop || 'wheat') === m.k ? 'primary' : '' })).join('')}</div>` : ''}</div>`;
+      <div class="indc">${meth}${eco && lv ? `<select data-act="pset" data-arg="${pr.id}:${k}" title="How hard it works">${[1, .75, .5, .25, 0].map(v => `<option value="${v}" ${Math.abs(set - v) < .01 ? 'selected' : ''}>${v ? Math.round(v * 100) + '%' : 'Off'}</option>`).join('')}</select>` : ''}
+      ${btn('build', `${pr.id}:${k}:1`, '+1', { dis: !ok1, title: `${costText(c1)} · ${kfmt(B.builders)} builders · ${B.weeks} weeks` })}${B.max || B.perCell ? '' : btn('build', `${pr.id}:${k}:5`, '+5', { dis: !ok5, title: `${costText(c5)} · ${kfmt(B.builders * 5)} builders · ${B.weeks} weeks` })}</div>
+      <div class="sub indi">${info}${!pl.ok && lv ? ` · ${pl.why}` : ''}${m && lv && ms.length > 1 ? ` · ${esc(recipeText(m))}` : ''}</div></div>`;
   }
+  if (locked.length) h += `<div class="sub indi">Not yet known: ${locked.map(k => `${D.buildings[k].n} <span class="sub">(${D.techMap[D.buildings[k].tech].n})</span>`).join(', ')}</div>`;
   h += `</div>`;
   if (pr.build) {
     const B = D.buildings[pr.build.k], need = G.buildersNeeded(pr), st = pr.build.staffed || 0;
@@ -110,7 +114,7 @@ function tabProvince(ui) {
   let h = `<div class="eyebrow">Province</div><h2>${esc(pr.name)}</h2><dl>
     ${row('Owner', owner ? chip(owner) + natName(owner) + (owner.cap === pr.id ? ' · capital' : '') : 'Free province')}
     ${ctrl && ctrl !== owner ? row('Occupied by', chip(ctrl) + natName(ctrl)) : ''}
-    ${row('Terrain', terrainText(pr))}${pr.res === 'port' ? row('Harbour', 'Natural harbour: armies can cross sea routes') : ''}
+    ${row('Terrain', terrainText(pr))}${(pr.dep || []).length ? row('Deposits', pr.dep.map(d => d[0].toUpperCase() + d.slice(1)).join(', ')) : ''}${pr.res === 'port' ? row('Harbour', 'Natural harbour: armies can cross sea routes') : ''}
     ${row('Population', `${fmtPop(pr.pop)} <span class="sub">· ${num(G.rawWorkforce(pr))} of working age</span>`)}
     ${owner && pr.ctrl === pr.owner ? row('Workers', `${num(Math.min(G.workforce(pr), pr.work || 0))} employed · ${num(G.subsistenceWorkers(pr))} farming their own land${G.idleWorkers(pr) >= 1 ? ` · <span class="neg">${num(G.idleWorkers(pr))} idle</span>` : ''} <span class="sub">· land feeds ${num(G.subsistenceCap(pr))}</span>${G.draftShare(owner) > .005 ? ` <span class="sub">· ${num(G.rawWorkforce(pr) - G.workforce(pr))} away in the army</span>` : ''}`) : ''}
     ${owner && pr.ctrl === pr.owner ? row('Living', `${Math.round(G.livingStandard(owner, pr) * 100)}% <span class="sub">· food, firewood and income${G.vacancies(pr) >= 1 ? ` · ${num(G.vacancies(pr))} jobs open, drawing people in` : G.idleWorkers(pr) >= 5 ? ' · more people than jobs and land, the idle move away' : ''}</span>`) : ''}
@@ -152,7 +156,7 @@ export function buildEcon() {
     <div class="brow"><span>GDP (value of what your people make)</span><b id="eGdp"></b></div>
     <div class="brow"><span>Treasury</span><b id="eTreas"></b></div>
     <div class="brow"><span>Taxes</span><b id="eInc" class="pos"></b></div>
-    <div class="brow"><span>Army upkeep</span><b id="eUp" class="neg"></b></div>
+    <div class="brow"><span>Soldiers' pay</span><b id="eUp" class="neg"></b></div>
     <div class="brow"><span>Builders' wages</span><b id="eWg" class="neg"></b></div>
     <div class="brow total"><span>Net per month</span><b id="eNet"></b></div>
     <div class="brow"><span>Treasury in 12 months</span><b id="eFc"></b></div>
@@ -164,12 +168,13 @@ export function buildEcon() {
   </div>
   <h3>Food and industry</h3>
   <div class="budget">
-    <div class="brow"><span>People fed with bread</span><b id="eFed"></b></div>
+    <div class="brow"><span>People fed</span><b id="eFed"></b></div>
     <div class="brow"><span>Homes with firewood</span><b id="eWarm"></b></div>
     <div class="brow"><span>Stone tools supplied</span><b id="eTools"></b></div>
     <div class="brow"><span>Workers employed</span><b id="eEmp"></b></div>
     <div class="brow"><span>Farming their own land</span><b id="eSubs"></b></div>
     <div class="brow"><span>Average wage</span><b id="eWage"></b></div>
+    <div class="brow"><span>Comforts (clothing, pots)</span><b id="eCom"></b></div>
   </div>
   <div class="btns"><button data-act="mgOpen" data-arg="res">Resources (G)</button><button data-act="mgOpen" data-arg="bld">Buildings (B)</button><button data-act="mgOpen" data-arg="army">Army (M)</button></div>
   <h3>Policy</h3>
@@ -197,10 +202,10 @@ export function updateEcon(ui) {
   set('eInc', '+' + fmtGdp(m.inc)); set('eUp', '−' + fmtGdp(m.up)); set('eWg', '−' + fmtGdp(m.wages || 0));
   set('eNet', (m.net >= 0 ? '+' : '') + fmtGdp(m.net), m.net < 0 ? 'neg' : 'pos');
   const fc = p.treasury + m.net * 12; set('eFc', fmtGdp(fc), fc < 0 ? 'neg' : '');
-  set('eFL', num(fl)); set('eArms', num(G.troopsOf(p)), G.troopsOf(p) > fl ? 'neg' : ''); set('eMP', `${num(p.manpower)} · +${kfmt(fl * .025)}/mo`);
+  set('eFL', `${num(fl)} · the treasury can pay about ${num(G.armyBudget(p))}`); set('eArms', num(G.troopsOf(p)), G.troopsOf(p) > fl ? 'neg' : ''); set('eMP', `${num(p.manpower)} · +${kfmt(fl * .025)}/mo`);
   const growth = -(p.tax - .15) * .012 * 12 * 100;
   set('vTax', Math.round(p.tax * 100) + '%');
-  set('hTax', `${fmtGdp(m.inc)} a month, a share of GDP. Grow GDP by making more, and more valuable, goods${p.tax > .2 ? '. Above 20% causes unrest and revolutions' : ''}.`);
+  set('hTax', `${fmtGdp(m.inc)} a month, a share of GDP. It comes out of people's wages, so lower taxes mean better living and faster growth. Grow GDP by making what your people need: scarce goods fetch higher prices${p.tax > .2 ? '. Above 20% causes unrest and revolutions' : ''}.`);
   set('vCon', fmtPct(p.milPct));
   set('hCon', `Force limit ${kfmt(fl)}, manpower +${kfmt(fl * .025)} a month${p.milPct > 3 ? `. Costs ${(Math.max(0, p.milPct - 3) * .0002 * 12 * 100).toFixed(1)} pts of GDP growth a year` : ''}.`);
   set('vMnt', Math.round(p.maint * 100) + '%');
@@ -210,7 +215,8 @@ export function updateEcon(ui) {
   set('eFed', Math.round((p.fed ?? 1) * 100) + '%', (p.fed ?? 1) < .95 ? 'neg' : 'pos'); set('eWarm', Math.round((p.warm ?? 1) * 100) + '%', (p.warm ?? 1) < .95 ? 'neg' : 'pos'); set('eTools', Math.round((p.toolSat ?? 1) * 100) + '%', (p.toolSat ?? 1) < .95 ? 'neg' : '');
   set('eEmp', `${kfmt(wk)} of ${kfmt(wf)} · ${Math.round(wk / Math.max(1, wf) * 100)}%`);
   const pb = G.popBreakdown(p); set('eSubs', `${kfmt(pb.subs)}${pb.idle >= 1 ? ` · ${kfmt(pb.idle)} idle` : ''}`);
-  set('eWage', `${fmtPrice(pb.wage)}/wk in work · ${fmtPrice(pb.income)}/wk on average`);
+  set('eWage', `${fmtPrice(pb.wage)}/wk in work · ${fmtPrice(pb.income)}/wk on average after tax`);
+  set('eCom', Math.round((p.comfort ?? 0) * 100) + '%', (p.comfort ?? 0) < .5 ? 'neg' : 'pos');
 }
 
 // ---------- Wars ----------
@@ -258,13 +264,15 @@ function tabWars(ui) {
 function tabTech() {
   const p = G.player(); if (!p) return '';
   const cost = G.techCost(p), av = G.techAvail(p);
-  let h = `<h2>Research</h2><div class="hint">${Math.floor(p.rp)} of ${cost} points · +${(G.researchPerMonth(p) * 12).toFixed(1)} a year (grows with GDP)</div><div class="bar"><span style="width:${Math.min(100, p.rp / cost * 100)}%"></span></div>`;
+  let h = `<h2>Research</h2><div class="hint">${Math.floor(p.rp)} of ${cost} points · +${(G.researchPerMonth(p) * 12).toFixed(1)} a year (grows with population and comforts)</div><div class="bar"><span style="width:${Math.min(100, p.rp / cost * 100)}%"></span></div>`;
   if (S.techOffers.length && p.rp >= cost) {
-    h += `<h3>Breakthrough ready · pick one</h3><div class="techs">${S.techOffers.map(k => { const t = D.techMap[k], c = cost + G.techExtra(p, t); return `<button class="tech" data-act="research" data-arg="${k}" ${p.rp >= c ? '' : 'disabled'}><strong>${t.n}</strong><small>${t.d}${c > cost ? ` · needs ${Math.ceil(c)} pts` : ''}</small></button>`; }).join('')}</div>`;
+    h += `<h3>Breakthrough ready · pick one</h3><div class="techs">${S.techOffers.map(k => { const t = D.techMap[k], c = cost + G.techExtra(p, t); return `<button class="tech" data-act="research" data-arg="${k}" ${p.rp >= c ? '' : 'disabled'}><strong>${t.n}</strong><small>${t.age === 'bronze' ? 'Bronze age · ' : ''}${t.d}${c > cost ? ` · needs ${Math.ceil(c)} pts` : ''}</small></button>`; }).join('')}</div>`;
   } else if (!av.length) h += `<p class="hint">Every technology is researched.</p>`;
   else h += `<p class="hint">When the bar fills you choose one of three random technologies.</p>`;
   h += `<h3>Researched</h3>` + (p.techs.length ? `<div class="tags">${p.techs.map(k => `<span class="tag on" title="${esc(D.techMap[k].d)}">${D.techMap[k].n}</span>`).join('')}</div>` : '<p class="hint">Nothing yet.</p>');
-  h += `<h3>Still to discover</h3><div class="techlist">${av.map(t => `<div><b>${t.n}</b><span class="sub">${t.d}</span></div>`).join('')}</div>`;
+  const later = D.techs.filter(t => !p.techs.includes(t.k) && !G.techReady(p, t)), age = t => t.age === 'bronze' ? 'Bronze age' : 'Stone age';
+  h += `<h3>Can be discovered</h3><div class="techlist">${av.map(t => `<div><b>${t.n}</b> <span class="sub">${age(t)}</span><span class="sub">${t.d}</span></div>`).join('')}</div>`;
+  if (later.length) h += `<h3>Later</h3><div class="techlist">${later.map(t => `<div><b>${t.n}</b> <span class="sub">${age(t)} · needs ${t.req.filter(k => !p.techs.includes(k)).map(k => D.techMap[k].n).join(', ')}</span><span class="sub">${t.d}</span></div>`).join('')}</div>`;
   return h;
 }
 

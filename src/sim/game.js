@@ -1,12 +1,12 @@
 // Public API of the simulation. The UI reads state through these exports and changes it only through commands.
-import { S, D, setState, setData, R, pick, rnd, newTribeName, MIN_ARMY, shuffle, clamp, MONTH, YEAR, UPKEEP, N, PN, log, emit, yearOf, unlockMedal,
+import { S, D, setState, setData, R, pick, rnd, newTribeName, MIN_ARMY, shuffle, clamp, MONTH, YEAR, soldierPay, N, PN, log, emit, yearOf, unlockMedal,
   player, provsOf, popOf, gdpOf, armiesOf, troopsOf, forceLimit, techCost, techExtra, techAvail, warBetween, atWar, warsOf, allied, truceWith, hasNuke, monthlyIncome } from './core.js';
 import { genWorld } from './world.js';
 import { createNation } from './nation.js';
 import { makeArmy, orderMove, dailyMilitary, dailyAttrition, nuke, nukeReady, reinforce, mor, mixOf, MORALE } from './military.js';
-import { orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvinceFor, rawWorkforce, workforce, subsistenceCap, freeWorkers as freeWorkersOf, buildersNeeded as buildersNeededOf } from './industry.js';
+import { methodsFor, orderBuild, ECON, provincesByOwner, weeklyProduction, spend, bestProvinceFor, rawWorkforce, workforce, subsistenceCap, freeWorkers as freeWorkersOf, buildersNeeded as buildersNeededOf } from './industry.js';
 import { declareWar, makePeace, checkFallen, warMonthly, aiDiplomacy, aiAccepts, allianceChance, normDeal } from './diplomacy.js';
-import { monthlyNation, weeklyNation, dailyNation, ERA_TRAITS } from './economy.js';
+import { monthlyNation, weeklyNation, dailyNation, ERA_TRAITS, armyBudget } from './economy.js';
 import { aiArmies } from './ai.js';
 import { migrateWithin, migrateBetween } from './population.js';
 import { triggerEvent, resolveDecision } from './events.js';
@@ -15,7 +15,8 @@ export * from './core.js';
 export { findPath, inBattle, nukeReady, siegeTarget, canColonise, mor, MORALE, mixOf, mixEff, formation, battleView, BATTLE, armyName, hopDays, legDays, etaDays, routeDays } from './military.js';
 export { goodsOutlook, producerOf } from './industry.js';
 export { livingStandard, tribeStandard, vacancies, idleWorkers, jobsWanted, subsistenceWorkers, jobWage } from './population.js';
-export { GOODS, ECON, workforce, rawWorkforce, draftShare, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor, subsistenceCap, subsistenceWage, isCon } from './industry.js';
+export { GOODS, ECON, workforce, rawWorkforce, draftShare, setting, biome, yieldOf, outputsOf, canPlace, buildCost, canAfford, buildersNeeded, freeWorkers, bestProvinceFor, subsistenceCap, subsistenceWage, isCon, methodOf, methodsOf, methodsFor, priceOf, unlocked, deposits, producersOf, maxLevels, bestMethod } from './industry.js';
+export { armyBudget } from './economy.js';
 export { provValue, provCost, isCrushed, CRUSH_MULT, warScore, occupiedBy, demandCost, aiAccepts, allianceChance, surrenderStatus, dealCost, requiredOffer, goldAmount, normDeal, isWhite, TERMS } from './diplomacy.js';
 
 export const SAVE_VERSION = 3;
@@ -183,7 +184,7 @@ export function cmdDischarge(id, frac) {
 }
 export function recruitLimits() {
   const p = player(), fl = forceLimit(p), room = Math.max(0, fl - troopsOf(p));
-  return { fl, room, max: Math.floor(Math.min(p.manpower, room, p.stock.swords + p.stock.spears)), swords: Math.floor(p.stock.swords), spears: Math.floor(p.stock.spears), costPer: UPKEEP * 1.5, upkeepPer: UPKEEP / 12 * (p.techs.includes('logistics') ? .5 : 1) * p.maint };
+  return { fl, room, max: Math.floor(Math.min(p.manpower, room, p.stock.swords + p.stock.spears)), swords: Math.floor(p.stock.swords), spears: Math.floor(p.stock.spears), costPer: soldierPay(p) * D.balance.army.signWeeks * 7 / MONTH, upkeepPer: soldierPay(p), budget: armyBudget(p) };
 }
 // Raise swordsmen and spearmen: each needs a sword or a spear from the stockpile.
 export function cmdRecruit(provId, sw, sp) {
@@ -236,9 +237,16 @@ export function cmdRename(armyId, name) {
   const a = army(armyId); if (!mine(a)) return fail('Not your army.');
   a.name = String(name || '').trim().slice(0, 32) || a.name; return { ok: true };
 }
-export function cmdSetCrop(provId, crop) {
-  const p = player(), pr = S.P[provId]; if (!pr || pr.owner !== p.id || !D.buildings.farm.methods.some(m => m.k === crop)) return fail('Not possible.');
-  pr.crop = crop; return { ok: true };
+// Choose a building's production method in one province (only methods the tribe has researched).
+export function cmdSetMethod(provId, k, mk) {
+  const p = player(), pr = S.P[provId]; if (!pr || pr.owner !== p.id || !D.buildings[k] || !methodsFor(p, k).some(m => m.k === mk)) return fail('Not possible.');
+  (pr.pm || (pr.pm = {}))[k] = mk; return { ok: true };
+}
+// The same, in every province at once.
+export function cmdSetMethodAll(k, mk) {
+  const p = player(); if (!p || !D.buildings[k] || !methodsFor(p, k).some(m => m.k === mk)) return fail('Not possible.');
+  for (const pr of S.P) if (pr.owner === p.id && pr.b[k]) (pr.pm || (pr.pm = {}))[k] = mk;
+  return { ok: true };
 }
 export function cmdPolicy({ tax, milPct, maint }) {
   const p = player(); if (!p) return fail('No nation.');
@@ -300,5 +308,10 @@ export function setAutoPlayer(on) { S.st.autoPlayer = !!on; }
 export function serialize() { return JSON.parse(JSON.stringify(S)); }
 export function load(state) {
   if (!state || state.v !== SAVE_VERSION) throw new Error('This save is from an incompatible version.');
-  setState(state); return S;
+  setState(state);
+  // older saves: drop technologies that no longer exist, add ore deposits and production-method choices
+  for (const n of S.nations) { n.techs = (n.techs || []).filter(k => D.techMap[k]); for (const g of Object.keys(D.goods)) if (n.stock && n.stock[g] == null) n.stock[g] = 0; }
+  for (const p of S.P) { if (!p.dep) p.dep = []; if (!p.pm) p.pm = {}; for (const k of Object.keys(D.buildings)) if (p.b[k] == null) p.b[k] = 0; }
+  S.techOffers = (S.techOffers || []).filter(k => D.techMap[k]);
+  return S;
 }

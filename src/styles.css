@@ -314,3 +314,5 @@ body.setup-mode #alerts { display: none; }
 .gexp h4:first-child, .gexp > div > h4:first-of-type { margin-top: 4px; }
 .gtr.on { border-radius: 6px 6px 0 0; }
 .gtr span:first-child { white-space: nowrap; }
+.btr select.msel { display: block; margin-top: 3px; width: auto; max-width: 100%; font-size: 12px; }
+.indc select + select { margin-left: 4px; }

@@ -16,7 +16,7 @@ const shadeRgb = (c, f) => c.map(x => Math.round(f >= 0 ? x + (255 - x) * f : x 
 export function drawBiome(c, k, x, y, r, dim) {
   const col = (D.biomes[k] || D.biomes.plains).c;
   c.save(); c.globalAlpha = dim ? .45 : 1;
-  c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill(); c.lineWidth = r / 7; c.strokeStyle = col; c.stroke();
+  r = Math.max(.5, r); c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill(); c.lineWidth = r / 7; c.strokeStyle = col; c.stroke();
   const s = r / 12; c.fillStyle = col; c.strokeStyle = col; c.lineWidth = 2 * s; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
   if (k === 'plains') { for (const dx of [-4, 0, 4]) { c.moveTo(x + dx * s, y + 6 * s); c.lineTo(x + dx * s, y - 2 * s); } c.stroke(); c.beginPath(); for (const dx of [-4, 0, 4]) c.ellipse(x + dx * s, y - 4 * s, 1.6 * s, 3 * s, 0, 0, 7); c.fill(); }
   else if (k === 'forest') { c.moveTo(x, y - 8 * s); c.lineTo(x + 6 * s, y + 3 * s); c.lineTo(x - 6 * s, y + 3 * s); c.closePath(); c.fill(); c.beginPath(); c.moveTo(x, y + 3 * s); c.lineTo(x, y + 7 * s); c.stroke(); }
@@ -26,7 +26,7 @@ export function drawBiome(c, k, x, y, r, dim) {
   c.restore();
 }
 function drawAnchor(c, x, y, r) {
-  const s = r / 12; c.save(); c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill();
+  r = Math.max(.5, r); const s = r / 12; c.save(); c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill();
   c.strokeStyle = '#5dd6e0'; c.lineWidth = 2 * s; c.lineCap = 'round'; c.beginPath();
   c.moveTo(x, y - 6 * s); c.lineTo(x, y + 6 * s); c.moveTo(x - 4 * s, y - 3 * s); c.lineTo(x + 4 * s, y - 3 * s); c.moveTo(x - 6 * s, y + 1 * s); c.quadraticCurveTo(x, y + 10 * s, x + 6 * s, y + 1 * s); c.stroke(); c.restore();
 }

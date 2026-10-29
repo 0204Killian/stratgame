@@ -1,53 +1,155 @@
 [
  {
-  "k": "artillery",
-  "n": "Artillery",
-  "d": "+12% battle strength, sieges 40% faster"
+  "k": "husbandry",
+  "n": "Animal husbandry",
+  "d": "Pastures: meat and hides from herds",
+  "age": "stone"
  },
  {
-  "k": "radar",
-  "n": "Fortifications",
-  "d": "+20% defence at home, enemy sieges slower"
+  "k": "fishing",
+  "n": "Fishing",
+  "d": "Fisheries on the coast",
+  "age": "stone"
  },
  {
-  "k": "carriers",
-  "n": "Carrier fleet",
-  "d": "Cross open ocean: armies sail from your ports to any coast on the same sea"
+  "k": "pottery",
+  "n": "Pottery",
+  "d": "Clay pits and potters: pots raise the living standard",
+  "age": "stone"
+ },
+ {
+  "k": "weaving",
+  "n": "Weaving",
+  "d": "Flax fields and weavers make linen",
+  "age": "stone"
+ },
+ {
+  "k": "milling",
+  "n": "Milling",
+  "d": "Mills grind flour; bakeries switch to ovens for 25% more bread",
+  "age": "stone"
+ },
+ {
+  "k": "tanning",
+  "n": "Tanning",
+  "d": "Tanneries and tailors: leather and clothes",
+  "age": "stone",
+  "req": [
+   "weaving"
+  ]
  },
  {
   "k": "green",
-  "n": "Green revolution",
-  "d": "+25% farm output"
+  "n": "Irrigation",
+  "d": "+25% farm output",
+  "age": "stone"
  },
  {
   "k": "propaganda",
-  "n": "Propaganda",
-  "d": "Revolutions and revolts much rarer"
+  "n": "Shrines and shamans",
+  "d": "Revolutions and revolts much rarer",
+  "age": "stone"
  },
  {
-  "k": "industry",
-  "n": "Industrialisation",
-  "d": "+20% output from every workshop (bakeries, smiths, toolsmiths)"
- },
- {
-  "k": "logistics",
-  "n": "Logistics",
-  "d": "Army upkeep halved, 25% faster marches"
+  "k": "radar",
+  "n": "Palisades",
+  "d": "+20% defence at home, enemy sieges slower",
+  "age": "stone"
  },
  {
   "k": "intel",
-  "n": "Spy network",
-  "d": "Sabotage enemy armies in wartime"
+  "n": "Scouts",
+  "d": "Sabotage enemy armies in wartime",
+  "age": "stone"
+ },
+ {
+  "k": "logistics",
+  "n": "Foraging parties",
+  "d": "Army pay halved, 25% faster marches",
+  "age": "stone"
+ },
+ {
+  "k": "masonry",
+  "n": "Masonry",
+  "d": "Brickworks: bricks for bigger buildings",
+  "age": "stone",
+  "req": [
+   "pottery"
+  ]
+ },
+ {
+  "k": "industry",
+  "n": "Craft guilds",
+  "d": "+20% output from every workshop",
+  "age": "stone",
+  "req": [
+   "pottery",
+   "weaving"
+  ]
+ },
+ {
+  "k": "artillery",
+  "n": "Siegecraft",
+  "d": "+12% battle strength, sieges 40% faster",
+  "age": "stone",
+  "req": [
+   "masonry"
+  ]
+ },
+ {
+  "k": "carriers",
+  "n": "Seafaring",
+  "d": "Cross open sea: armies sail from your ports to any coast on the same sea",
+  "age": "stone",
+  "req": [
+   "fishing"
+  ]
+ },
+ {
+  "k": "copper",
+  "n": "Copper working",
+  "d": "Copper mines and charcoal kilns. Opens the bronze age",
+  "age": "bronze",
+  "req": [
+   "masonry"
+  ]
+ },
+ {
+  "k": "bronze",
+  "n": "Bronze casting",
+  "d": "Tin mines, smelters and bronze tools (+35% output in raw industries)",
+  "age": "bronze",
+  "req": [
+   "copper"
+  ]
+ },
+ {
+  "k": "bronzeweapons",
+  "n": "Bronze weapons",
+  "d": "Smiths forge bronze swords and spears: up to +25% fighting strength",
+  "age": "bronze",
+  "req": [
+   "bronze"
+  ]
+ },
+ {
+  "k": "plough",
+  "n": "The plough",
+  "d": "+30% farm output",
+  "age": "bronze",
+  "req": [
+   "bronze",
+   "green"
+  ]
  },
  {
   "k": "blitz",
-  "n": "Mechanised divisions",
-  "d": "Armies march twice as fast"
- },
- {
-  "k": "nukes",
-  "n": "The bomb",
-  "d": "Nuclear strikes in wartime",
-  "extra": 12
+  "n": "Chariots",
+  "d": "Armies march twice as fast",
+  "age": "bronze",
+  "req": [
+   "bronze",
+   "husbandry"
+  ]
  }
 ]

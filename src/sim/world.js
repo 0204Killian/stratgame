@@ -73,7 +73,7 @@ export function genWorld(size, nationCount) {
   S.land = Array.from(L); S.reg = Array.from(G);
   const P = [];
   const b0 = () => Object.fromEntries(Object.keys(D.buildings).map(k => [k, 0]));
-  for (let i = 0; i < n; i++) P.push({ id: i, name: '', named: false, cells: [], owner: null, ctrl: null, landN: [], seaN: [], pop: 0, gdp: 0, devUntil: -1, siege: null, b: b0(), set: {}, crop: 'wheat', build: null, biome: 'plains', res: null });
+  for (let i = 0; i < n; i++) P.push({ id: i, name: '', named: false, cells: [], owner: null, ctrl: null, landN: [], seaN: [], pop: 0, gdp: 0, devUntil: -1, siege: null, b: b0(), set: {}, pm: {}, dep: [], build: null, biome: 'plains', res: null });
   const coastal = new Uint8Array(n), landSets = P.map(() => new Set());
   for (let i = 0; i < W * H; i++) {
     const p = S.reg[i]; if (p < 0) continue; P[p].cells.push(i);
@@ -92,6 +92,9 @@ export function genWorld(size, nationCount) {
     p.landN = [...landSets[i]]; p.coastal = !!coastal[i];
     p.biome = Object.entries(votes[i]).sort((a, b) => b[1] - a[1])[0]?.[0] || 'plains';
     p.res = p.coastal && R() < .3 ? 'port' : null;   // natural harbour
+    // ore deposits: copper is common in hills and mountains, tin is rare everywhere
+    const rough = p.biome === 'hills' || p.biome === 'mountains', r1 = R(), r2 = R();
+    p.dep = []; if (r1 < (rough ? .35 : .05)) p.dep.push('copper'); if (r2 < (rough ? .1 : .025)) p.dep.push('tin');
     p.name = `Uncharted ${D.biomes[p.biome].n.toLowerCase()}`;
     let sx = 0, sy = 0; p.cells.forEach(c => { sx += c % W; sy += (c / W) | 0; }); sx /= p.cells.length; sy /= p.cells.length;
     let bc = p.cells[0], bd = 1e9; p.cells.forEach(c => { const d = (c % W - sx) ** 2 + (((c / W) | 0) - sy) ** 2; if (d < bd) { bd = d; bc = c; } });

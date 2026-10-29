@@ -22,7 +22,7 @@ export function livingStandard(n, p) {
   if (p.ctrl !== n.id) return .25;
   const food = Math.min(n.fed ?? 1, n.warm ?? 1), sat = food + (1 - food) * biome(p).sub;
   const income = p.inc == null ? 1 : Math.min(1, p.inc / E().refWage);
-  return sat * (.6 + .4 * income);
+  return sat * (.55 + .3 * income + .15 * (n.comfort ?? 0));
 }
 export function tribeStandard(n) {
   let s = 0, w = 0; for (const p of provsOf(n)) { s += livingStandard(n, p) * p.pop; w += p.pop; }

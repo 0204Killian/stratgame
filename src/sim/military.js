@@ -4,7 +4,7 @@ import { S, D, R, rnd, clamp, memo, YEAR, N, PN, log, emit, has, atWar, allied, 
 // An army is a number of troops and a mix: the share that are swordsmen (front row); the rest are spearmen (back row).
 export function makeArmy(n, provId, troops, mix = .5) {
   n.bands = (n.bands || 0) + 1;
-  const a = { id: S.nextArmyId++, nat: n.id, name: `${ordinal(n.bands)} War Band`, troops: Math.max(0, troops), mix, prov: provId, path: [], prog: 0, hop: 6, retreat: false, mor: MORALE.recruit };
+  const a = { id: S.nextArmyId++, nat: n.id, name: `${ordinal(n.bands)} War Band`, troops: Math.max(0, troops), mix, prov: provId, path: [], prog: 0, hop: 6, retreat: false, mor: MORALE.recruit, full: Math.max(0, troops) };
   S.armies.push(a); return a;
 }
 export const mixOf = a => a.mix ?? .5;
@@ -17,6 +17,7 @@ export const mor = a => a.mor ?? 1;
 // Add troops to an army: fresh recruits dilute its morale.
 export function reinforce(a, troops, m = MORALE.recruit, mx = .5) {
   const t = a.troops + troops; if (t > 0) { a.mor = (mor(a) * a.troops + m * troops) / t; a.mix = (mixOf(a) * a.troops + mx * troops) / t; } a.troops = t;
+  a.full = Math.max(a.full ?? 0, t);   // the strength it refills to after losses
 }
 export function canEnter(nid, p) {
   if (p.owner == null) return true;

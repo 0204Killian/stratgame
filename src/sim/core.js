@@ -96,11 +96,13 @@ export const has = (n, k) => n.techs.includes(k);
 export const devastated = p => p.devUntil > S.day;
 export const stab = n => gov(n).stab + leader(n).stab + (has(n, 'propaganda') ? .2 : 0) - Math.max(0, n.tax - .2) * 2;
 export const hasNuke = n => n.trait === 'nuke' || has(n, 'nukes');
+export const techReady = (n, t) => !t.req || t.req.every(k => n.techs.includes(k));
 export const forceLimit = n => popOf(n) * 1e6 * n.milPct / 100;
-export const techCost = n => 10 + n.techs.length * 6;
+export const techCost = n => 8 + n.techs.length * 6;
 export const techExtra = (n, t) => t.extra || 0;
-export const techAvail = n => D.techs.filter(t => !has(n, t.k) && !(t.k === 'nukes' && hasNuke(n)));
-export const researchPerMonth = n => (2 + Math.log10(Math.max(1, gdpOf(n))) * 1.5) / 12;
+export const techAvail = n => D.techs.filter(t => !has(n, t.k) && techReady(n, t));
+// Research comes from people with time to think: more people, and better-off people, discover more.
+export const researchPerMonth = n => (.5 + 1.2 * Math.log10(1 + popOf(n) * 1e6 / 100)) * (.75 + .5 * (n.comfort ?? 0));
 export const warBetween = (x, y) => S.wars.find(w => (w.a === x && w.b === y) || (w.a === y && w.b === x));
 export const atWar = (x, y) => x != null && y != null && x !== y && !!warBetween(x, y);
 export const warsOf = id => S.wars.filter(w => w.a === id || w.b === id);
@@ -110,15 +112,19 @@ export const truceWith = (x, y) => (S.nations[x].truce[y] || -1) > S.day;
 export const isPort = p => p.res === 'port' || p.b.harbour > 0;
 export const garrison = p => Math.max(MIN_ARMY(), Math.round(p.pop * 1e6 * (p.owner == null ? .05 : .03))) * (1 + .5 * p.b.fort);
 export const upkeepMult = n => (has(n, 'logistics') ? .5 : 1) * n.maint;
+// Soldiers are paid a share of the tribe's average wage: a month's pay per soldier, in treasury units.
+export const soldierPay = n => (n.avgWage || D.balance.econ.refWage) * D.balance.army.payShare * MONTH / 7 / 1e9 * upkeepMult(n);
 export function monthlyIncome(n) {
   let inc = 0; for (const p of S.P) if (p.owner === n.id && p.ctrl === n.id) inc += p.gdp * n.tax / 12;
-  const up = troopsOf(n) * UPKEEP / 12 * upkeepMult(n);
+  const up = troopsOf(n) * soldierPay(n);
   const wages = (n.conPay || 0) * MONTH / 7 / 1e9;   // builders on the tribe's payroll
   return { inc, up, wages, net: inc - up - wages };
 }
 export const quality = n => memo('q' + n.id, () => qualityRaw(n));
 function qualityRaw(n) {
+  // fighting strength: leadership, siegecraft, bronze weapons, and whether worn-out weapons have been replaced
   let q = 1 + leader(n).q + (has(n, 'artillery') ? .12 : 0) + .03 * Math.log10(Math.max(1, gdpOf(n)));
+  q *= (1 + D.balance.army.bronzeQ * (n.armsQ || 0)) * (.7 + .3 * (n.armed ?? 1));
   if (n.you) q *= D.difficulties[S.diff].q;
   return q * (.6 + .4 * n.maint);
 }

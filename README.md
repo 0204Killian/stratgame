@@ -9,16 +9,20 @@ A real-time grand strategy game from the stone age up. You found a small farming
 ## Economy and armies
 - Every tribe starts with a few hundred people on a tile where farming, forestry and stone are all possible. Free tiles hold 0 to 300 people.
 - Tiles have no name until settled; then they take a place name from the settling tribe's culture (60 cultures in `src/data/cultures.json`).
-- People eat bread and burn firewood. Wheat only feeds bakeries.
-- GDP is the yearly value added by every building: what it makes, at each good's price, less what it uses up. Raw (tier 1) goods are cheap, made goods (tier 2) worth more; taxes are a share of GDP.
-- The Resources page forecasts every good (averages, construction in progress, population growth) and suggests what to build, following the chain to the input that is really missing.
-- Soldiers come out of the workforce while they serve; soldiers killed in war are gone from the population.
-- Place names: real ones from the culture first, then names built from its naming elements (`gen` in cultures.json).
-- Every province has a biome (plains, forest, hills, mountains, desert). Stone can be quarried anywhere; farms and forestry are not possible in deserts or mountains.
-- Goods sit in one national stockpile. Farms grow wheat or fiber, forestry cuts wood, quarries cut stone. All three need stone tools from toolsmiths, or they work at half speed.
-- Bakeries turn wheat into bread, burning wood. People eat one bread a week; hungry provinces shrink, and subsistence farming covers only part of the gap.
-- Buildings employ the province's own workers and pay them wages. Construction costs wood and stone, and builders from construction centres (see below). You can turn each building's work rate down to free workers.
+- Every province has a biome (plains, forest, hills, mountains, desert), and some have copper or tin deposits. Copper is common in hills and mountains; tin is rare everywhere.
+- **Production lines.** Goods sit in one national stockpile. Raw industries (farms, forestry, quarries, hunting lodges, flax fields, pastures, fisheries, clay pits, copper and tin mines) need tools: stone tools, or bronze tools that wear slower and add 35% output. Workshops turn goods into better goods:
+  - wheat → (mill → flour) → bakery → bread
+  - flax → weaver → linen; hides → tannery → leather; linen + leather → tailor → clothes
+  - clay → potter → pottery; clay → brickworks → bricks (building material)
+  - wood → charcoal kiln → charcoal; copper ore + tin ore + charcoal → smelter → bronze → bronze tools, bronze swords and spears
+- **Production methods.** Some buildings have more than one way to work (hearth or oven bakeries, stone or bronze weapons). Choose per province, or for every province on the Buildings page. By default each province uses the newest method whose inputs the tribe actually makes.
+- **Needs.** People eat food (fresh fish and meat first, then bread), burn fuel (wood or charcoal), and want clothing and pots. Food and fuel decide whether they live; clothing and pots raise the living standard, which drives growth and research.
+- **Money comes from production.** Every good has a price in each tribe, set by supply and demand: scarce goods are worth up to 2.5× their normal worth, goods nobody needs fall to a quarter. GDP is the value added at those prices. Workers earn a share of it as wages, and taxes are a share of it, taken out of people's wages. A rich treasury can afford lower taxes, which means better living and faster growth.
+- **Technology.** A stone age tree (husbandry, fishing, pottery, weaving, milling, tanning, masonry, irrigation and more) leads into the bronze age (copper working, bronze casting, bronze weapons, the plough, chariots). Each tech opens buildings or methods.
+- **Armies are paid.** Soldiers come out of the workforce, are paid a share of the average wage from the treasury, and wear out their weapons (five times faster in war). Without replacement swords and spears they fight worse. Bronze weapons add up to 25% fighting strength. The force limit is a ceiling; what the treasury can pay is the real limit, shown on the Tribe page.
+- **AI wars have reasons.** AI tribes attack only when they can pay for half a year of war, clearly outmatch the target (counting its allies and reserves), and want something: land for idle people, an ore deposit they lack, or revenge. A side that can't pay for its war looks for peace.
 - Armies are swordsmen (front row) and spearmen (back row); each soldier needs a sword or a spear. Battles run day by day; 1:1 fills both rows.
+- The Resources page forecasts every good and suggests what to build, following the chain to the input that is really missing, or the technology you need.
 
 ## Population
 

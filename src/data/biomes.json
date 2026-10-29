@@ -5,7 +5,10 @@
   "y": {
    "farm": 1.25,
    "forestry": 0.6,
-   "quarry": 0.7
+   "quarry": 0.7,
+   "hunter": 1,
+   "pasture": 1.25,
+   "claypit": 1.1
   },
   "sub": 0.25,
   "width": 1,
@@ -19,7 +22,10 @@
   "y": {
    "farm": 0.7,
    "forestry": 1.5,
-   "quarry": 0.8
+   "quarry": 0.8,
+   "hunter": 1.4,
+   "pasture": 0.6,
+   "claypit": 0.8
   },
   "sub": 0.3,
   "width": 0.75,
@@ -33,7 +39,10 @@
   "y": {
    "farm": 0.8,
    "forestry": 0.9,
-   "quarry": 1.3
+   "quarry": 1.3,
+   "hunter": 0.9,
+   "pasture": 1,
+   "claypit": 0.9
   },
   "sub": 0.25,
   "width": 0.65,
@@ -47,7 +56,10 @@
   "y": {
    "farm": 0,
    "forestry": 0,
-   "quarry": 1.6
+   "quarry": 1.6,
+   "hunter": 0.5,
+   "pasture": 0.3,
+   "claypit": 0.2
   },
   "sub": 0.1,
   "width": 0.45,
@@ -62,7 +74,10 @@
   "y": {
    "farm": 0,
    "forestry": 0,
-   "quarry": 1
+   "quarry": 1,
+   "hunter": 0.3,
+   "pasture": 0.4,
+   "claypit": 0.3
   },
   "sub": 0.05,
   "width": 1,

@@ -1,6 +1,8 @@
 // Wars, war score, peace deals, alliances, AI war declarations.
-import { S, D, R, clamp, MONTH, YEAR, N, PN, log, emit, gov, leader, popOf, troopsOf, monthlyIncome, provsOf, neighbours, warBetween, atWar, warsOf, enemyIn, allied, truceWith, player, addDecision, unlockMedal, trait } from './core.js';
+import { S, D, R, clamp, MONTH, YEAR, N, PN, log, emit, gov, leader, popOf, troopsOf, monthlyIncome, provsOf, neighbours, warBetween, atWar, warsOf, enemyIn, allied, truceWith, player, addDecision, unlockMedal, trait, soldierPay } from './core.js';
 import { orderMove } from './military.js';
+import { workforce, subsistenceCap } from './industry.js';
+import { idleWorkers } from './population.js';
 
 export function provValue(p) {
   const o = p.owner != null ? S.nations[p.owner] : null; if (!o) return 0;
@@ -184,7 +186,14 @@ export function warMonthly(w) {
     return;
   }
   if ((sc >= 25 && age >= 8 * MONTH && R() < .35) || (sc >= TERMS.whiteBand && age >= 3 * YEAR && R() < .2)) { const deal = bestDeal(w, winner.id, sc); if (!isWhite(deal)) { makePeace(w, winner.id, deal); return; } }
-  if (age >= 3 * YEAR && sc < TERMS.whiteBand && R() < .2) makePeace(w, winner.id, [], 'Both sides are exhausted.');
+  if (age >= 3 * YEAR && sc < TERMS.whiteBand && R() < .2) { makePeace(w, winner.id, [], 'Both sides are exhausted.'); return; }
+  // war costs money: an AI side that can no longer pay its soldiers looks for a way out
+  const broke = x => !x.you && x.treasury < 0;
+  if (age >= YEAR && (broke(A) || broke(B)) && R() < .15) {
+    const deal = sc >= 10 ? bestDeal(w, winner.id, sc) : [];
+    if (broke(winner) && !winner.you && !loser.you) makePeace(w, winner.id, [], `${winner.name} can no longer pay for the war.`);
+    else if (broke(loser) && !loser.you && (!winner.you || S.st.autoPlayer)) makePeace(w, winner.id, deal, `${loser.name} can no longer pay for the war.`);
+  }
 }
 export function allianceChance(p, t) {
   if (S.day - t.lastAsk < YEAR) return 0;
@@ -193,24 +202,37 @@ export function allianceChance(p, t) {
   if (troopsOf(p) > troopsOf(t)) c += .1;
   return clamp(c, 0, .95);
 }
+// AI tribes go to war for a reason and only when they can afford it: they need land (idle people, land full of
+// subsistence farmers), want an ore deposit they lack, or hold a grudge. They pick a target they clearly outmatch,
+// counting its allies, and only with money in the treasury to keep the army paid through a long war.
 export function aiDiplomacy() {
   const p = player();
   for (const n of S.nations) {
     if (!n.alive || n.you || warsOf(n.id).length) continue;
     let agg = gov(n).agg + leader(n).agg; if (n.leader === 'senile') agg += (R() - .33) * .6;
-    if (n.grudge != null && n.grudgeUntil > S.day) agg += .4;
+    const grudge = n.grudge != null && n.grudgeUntil > S.day;
+    if (grudge) agg += .4;
     if (R() > agg * .02) continue;
-    const my = troopsOf(n);
+    const my = troopsOf(n), m = monthlyIncome(n);
+    if (my < 10 || n.treasury < my * soldierPay(n) * 6 || m.net < 0) continue;   // can't pay for half a year of war
+    // motives
+    const ps = provsOf(n).filter(q => q.ctrl === n.id), wf = ps.reduce((s, q) => s + workforce(q), 0);
+    const crowded = ps.reduce((s, q) => s + idleWorkers(q), 0) / Math.max(1, wf) > .04 || ps.every(q => (q.subs || 0) >= subsistenceCap(q) * .9);
+    const have = new Set(ps.flatMap(q => q.dep || []));
+    const wantsOre = t => (n.techs.includes('copper') && !have.has('copper') && provsOf(t).some(q => (q.dep || []).includes('copper')))
+      || (n.techs.includes('bronze') && !have.has('tin') && provsOf(t).some(q => (q.dep || []).includes('tin')));
     let cands = neighbours(n).filter(t => !n.allies.includes(t.id) && !truceWith(n.id, t.id) && !atWar(n.id, t.id));
     if (p && S.day < D.difficulties[S.diff].grace * YEAR) cands = cands.filter(t => !t.you);
-    const allyPow = t => troopsOf(t) + t.allies.reduce((s, x) => s + troopsOf(S.nations[x]) * .6, 0);
-    let weak = cands.filter(t => allyPow(t) < my * .85);
-    if (n.grudge != null && n.grudgeUntil > S.day) { const g = cands.find(t => t.id === n.grudge); if (g) weak = [g]; }
+    if (!grudge && !crowded) { cands = cands.filter(wantsOre); if (!cands.length) continue; }
+    // defensive strength: soldiers, plus what the target could raise from its own manpower, plus allies
+    const def = t => troopsOf(t) + Math.min(t.manpower || 0, troopsOf(t)) * .5 + t.allies.reduce((s, x) => s + troopsOf(S.nations[x]) * .6, 0);
+    let weak = cands.filter(t => def(t) < my * .65);
+    if (grudge) { const g = cands.find(t => t.id === n.grudge); if (g && def(g) < my * .9) weak = [g]; }
     if (!weak.length) continue;
     const pl = weak.filter(t => t.you), bias = D.difficulties[S.diff].bias;
     let t;
     if (pl.length && bias > 0 && R() < bias) t = pl[0];
-    else { let pool = weak; if (pl.length && bias < 0 && weak.length > 1 && R() < -bias) pool = weak.filter(x => !x.you); t = pool.sort((x, y) => allyPow(x) - allyPow(y))[0]; }
+    else { let pool = weak; if (pl.length && bias <= 0 && weak.length > 1 && R() < .5 - bias) pool = weak.filter(x => !x.you); t = pool.sort((x, y) => (wantsOre(y) - wantsOre(x)) || def(x) - def(y))[0]; }
     if (t) declareWar(n, t);
   }
 }

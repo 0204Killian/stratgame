@@ -1,7 +1,7 @@
 {
  "month": 30,
  "year": 360,
- "upkeep": 0.000005,
+ "upkeep": 5e-06,
  "truceYears": 3,
  "nukeCooldownYears": 3,
  "maxYears": 120,
@@ -66,20 +66,34 @@
  },
  "econ": {
   "workShare": 0.4,
-  "breadPerPerson": 1,
   "rawOrder": [
    "farm",
    "forestry",
-   "quarry"
+   "quarry",
+   "hunter",
+   "flax",
+   "pasture",
+   "fishery",
+   "claypit",
+   "coppermine",
+   "tinmine"
   ],
   "procOrder": [
+   "mill",
    "bakery",
    "toolsmith",
+   "kiln",
+   "weaver",
+   "tanner",
+   "tailor",
+   "potter",
+   "brickworks",
+   "smelter",
+   "bronzesmith",
    "spearsmith",
    "swordsmith"
   ],
   "toolMinOutput": 0.5,
-  "woodPerPerson": 0.1,
   "wageShare": 0.6,
   "refWage": 150,
   "subsistenceWage": 60,
@@ -88,7 +102,66 @@
   "idleMoveRate": 0.3,
   "subMoveRate": 0.02,
   "subMoveCap": 0.0025,
-  "subMoveGap": 1.6
+  "subMoveGap": 1.6,
+  "needs": [
+   {
+    "k": "food",
+    "n": "Food",
+    "per": 1,
+    "basic": true,
+    "main": "bread",
+    "goods": {
+     "fish": 1,
+     "meat": 1,
+     "bread": 1
+    }
+   },
+   {
+    "k": "fuel",
+    "n": "Firewood",
+    "per": 0.1,
+    "basic": true,
+    "main": "wood",
+    "goods": {
+     "charcoal": 2.5,
+     "wood": 1
+    }
+   },
+   {
+    "k": "clothing",
+    "n": "Clothing",
+    "per": 0.03,
+    "main": "clothes",
+    "goods": {
+     "clothes": 1,
+     "leather": 0.5,
+     "cloth": 0.5
+    }
+   },
+   {
+    "k": "pots",
+    "n": "Pots and jars",
+    "per": 0.02,
+    "main": "pottery",
+    "goods": {
+     "pottery": 1
+    }
+   }
+  ],
+  "spoil": {
+   "bread": 0.03,
+   "wheat": 0.01,
+   "flour": 0.01,
+   "meat": 0.08,
+   "fish": 0.12
+  },
+  "bronzeToolBoost": 0.35,
+  "price": {
+   "min": 0.25,
+   "max": 2.5,
+   "curve": 0.5,
+   "stockWeeks": 26
+  }
  },
  "minArmy": 5,
  "startPop": [
@@ -101,5 +174,14 @@
  ],
  "startMil": 10,
  "coloniseDays": 240,
- "settleCrowding": 150
+ "settleCrowding": 150,
+ "army": {
+  "payShare": 0.4,
+  "signWeeks": 4,
+  "wearPeace": 0.003,
+  "wearWar": 0.015,
+  "bronzeQ": 0.25,
+  "aiBudget": 0.9,
+  "aiWarBudget": 1.0
+ }
 }

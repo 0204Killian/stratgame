@@ -273,7 +273,6 @@ function onPanelClick(e) {
     case 'disband': if (confirm2('disband:' + arg)) { result(G.cmdDischarge(+arg, 1)); select(null); } break;
     case 'build': { const [pid, k, lv] = arg.split(':'); result(G.cmdBuild(+pid, k, +lv || 1), ['Construction started', `${D.buildings[k].n}${+lv > 1 ? ' ×' + lv : ''} · ${S.P[+pid].name}`, `About ${D.buildings[k].weeks} weeks with enough builders`]); break; }
     case 'cancelBuild': result(G.cmdCancelBuild(+arg)); break;
-    case 'crop': { const [pid, c] = arg.split(':'); result(G.cmdSetCrop(+pid, c)); break; }
     case 'recHere': ui.mg.rec = { ...(ui.mg.rec || { sw: 0, sp: 0 }), prov: +arg }; openManage('army'); break;
     // ---- management screens ----
     case 'mgOpen': openManage(arg); break;
@@ -318,6 +317,8 @@ function onPanelInput(e) {
     const k = t.dataset.act === 'mgRecSw' ? 'sw' : 'sp'; ui.mg.rec[k] = +t.value; const lab = $(k === 'sw' ? 'mSwV' : 'mSpV'); if (lab) lab.textContent = num(+t.value);
     if (e.type === 'change') refreshManage(true); return;
   }
+  else if (t.dataset.act === 'pmeth' && e.type === 'change') { const [pid, k] = t.dataset.arg.split(':'); result(G.cmdSetMethod(+pid, k, t.value)); refreshPanel(true); return; }
+  else if (t.dataset.act === 'mgMeth' && e.type === 'change') { if (t.value !== 'Mixed') result(G.cmdSetMethodAll(t.dataset.arg, t.value)); refreshManage(true); return; }
   else if (t.dataset.act === 'pset' && e.type === 'change') { const [pid, k] = t.dataset.arg.split(':'); result(G.cmdSetProduction(+pid, k, +t.value)); return; }
   else if (t.dataset.act === 'pterm' && e.type === 'change') {
     const [w, k, v] = t.dataset.arg.split(':'), sel = ui.peaceSel[+w]; if (!sel) return;
